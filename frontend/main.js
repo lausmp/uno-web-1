@@ -24,6 +24,7 @@ function connectWebSocket() {
   };
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
+    console.log('WebSocket message:', msg);
     if (msg.type === 'subscribed') return;
     if (msg.gameState) {
       gameState = msg.gameState;
@@ -75,8 +76,10 @@ function renderBoard(data, lastAction = null) {
     <div class="player-name">Stephanie</div>
     <div>${data.clientCards.map((c, i) => renderClickableCard(c, i, isMyTurn, data)).join('')}</div>
   `;
+  // Mazo clickeable solo si es tu turno y no tienes jugada válida
+  const canDraw = isMyTurn && !data.clientCards.some(c => isCardValid(c, data.pileCard, data.currentColor));
+  document.getElementById('deck').innerHTML = `<img src="cartas/back.jpg" class="card-img" alt="deck" style="cursor:${canDraw ? 'pointer' : 'not-allowed'};" ${canDraw ? 'onclick="drawFromDeck()"' : ''}>`;
   document.getElementById('pile').innerHTML = renderCard(data.pileCard);
-  document.getElementById('deck').innerHTML = '<img src="cartas/back.jpg" class="card-img" alt="deck">';
   showStatus(data, lastAction);
 }
 
@@ -145,6 +148,21 @@ async function playCard(idx) {
   if (data.finished) showEndMessage();
 }
 
+async function drawFromDeck() {
+  if (gameState.turn !== 0 || gameState.finished) return;
+  const res = await fetch('http://localhost:3001/draw', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gameId })
+  });
+  const data = await res.json();
+  gameState = { ...gameState, ...data.gameState };
+  saveState();
+  renderBoard(gameState);
+  // Notificación visual (opcional)
+  showTurnInfo({ type: 'client_draw_from_deck', player: 'You', card: data.card });
+}
+
 function showStatus(data, lastAction = null) {
   let msg = '';
   let turnPlayer = PLAYER_NAMES[data.turn];
@@ -169,21 +187,25 @@ function showTurnInfo(msg) {
   if (msg.type === 'bot_play') {
     info = `<b>${msg.player}</b> played ${renderCard(msg.card)}`;
     if (msg.card.color === 'wild') {
-      info += ` and chose <span style="color:${msg.chosenColor}">${msg.chosenColor}</span>`;
+      info += ` and chose <span style=\"color:${msg.chosenColor}\">${msg.chosenColor}</span>`;
     }
+  } else if (msg.type === 'bot_draw_from_deck') {
+    info = `<b>${msg.player}</b> drew a card from the deck.`;
   } else if (msg.type === 'bot_draw') {
     info = `<b>${msg.player}</b> drew a card and passed.`;
   } else if (msg.type === 'client_play') {
     info = `<b>You played</b> ${renderCard(msg.card)}`;
     if (msg.card.color === 'wild') {
-      info += ` and chose <span style="color:${msg.chosenColor}">${msg.chosenColor}</span>`;
+      info += ` and chose <span style=\"color:${msg.chosenColor}\">${msg.chosenColor}</span>`;
     }
+  } else if (msg.type === 'client_draw_from_deck') {
+    info = `<b>You drew a card from the deck.</b>`;
   } else if (msg.type === 'client_draw') {
     info = `<b>You drew a card and passed.</b>`;
   } else if (msg.type === 'client_draw_play') {
     info = `<b>You drew and played</b> ${renderCard(msg.card)}`;
     if (msg.card.color === 'wild') {
-      info += ` and chose <span style="color:${msg.chosenColor}">${msg.chosenColor}</span>`;
+      info += ` and chose <span style=\"color:${msg.chosenColor}\">${msg.chosenColor}</span>`;
     }
   }
   let div = document.getElementById('turn-info');

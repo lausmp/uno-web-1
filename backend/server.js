@@ -185,8 +185,9 @@ async function simulateBotsWithDelay(game, gameId) {
       } else {
         game.turn = nextTurnClockwise(game.turn, 4);
         sendWsUpdate(gameId, {
-          type: 'bot_draw',
+          type: 'bot_draw_from_deck',
           player: PLAYERS[botIdx],
+          card: drawn,
           gameState: getGameState(game, gameId)
         });
       }
@@ -355,6 +356,21 @@ app.post('/play', async (req, res) => {
   await simulateBotsWithDelay(game, gameId);
   if (hand.length === 0) game.finished = true;
   res.json(getGameState(game, gameId));
+});
+
+app.post('/draw', (req, res) => {
+  const { gameId } = req.body;
+  const game = games[gameId];
+  if (!game || game.finished) return res.status(400).json({ error: 'Game not found or finished' });
+  if (game.turn !== 0) return res.status(400).json({ error: 'Not your turn' });
+  const card = drawCard(game, 0);
+  sendWsUpdate(gameId, {
+    type: 'client_draw_from_deck',
+    player: PLAYERS[0],
+    card,
+    gameState: getGameState(game, gameId)
+  });
+  res.json({ card, clientCards: game.hands[0], gameState: getGameState(game, gameId) });
 });
 
 const server = http.createServer(app);
