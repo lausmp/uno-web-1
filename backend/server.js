@@ -64,10 +64,12 @@ function dealHands(deck, numPlayers, cardsPerPlayer) {
 }
 
 function isCardValid(card, pileCard, currentColor) {
+  if (!card) return false;
   if (card.color === 'wild') return true;
   if (card.color === currentColor) return true;
-  if (card.type === pileCard.type && card.value === pileCard.value) return true;
-  if (card.type === 'number' && card.value === pileCard.value) return true;
+  if (card.type === 'number' && pileCard.type === 'number' && card.value === pileCard.value) return true;
+  // Solo puedes poner skip, reverse, draw2 si el color coincide
+  if (SPECIALS.includes(card.type) && card.color === currentColor && card.type === pileCard.type) return true;
   return false;
 }
 
@@ -75,13 +77,34 @@ function nextTurn(turn, direction, numPlayers) {
   return (turn + direction + numPlayers) % numPlayers;
 }
 
-function simulateBot(player, hand, pileCard, currentColor) {
-  for (let i = 0; i < hand.length; i++) {
-    if (isCardValid(hand[i], pileCard, currentColor)) {
-      return { card: hand[i], idx: i };
+function getValidCards(hand, pileCard, currentColor) {
+  return hand.map((c, i) => isCardValid(c, pileCard, currentColor) ? i : -1).filter(i => i !== -1);
+}
+
+function drawCard(game, playerIdx) {
+  if (game.deck.length === 0) return null;
+  const card = game.deck.pop();
+  game.hands[playerIdx].push(card);
+  return card;
+}
+
+function simulateBot(game, botIdx) {
+  const hand = game.hands[botIdx];
+  const pileCard = game.pile[game.pile.length-1];
+  const currentColor = game.currentColor;
+  let validIndexes = getValidCards(hand, pileCard, currentColor);
+  if (validIndexes.length > 0) {
+    // Juega la primera carta válida
+    return { play: true, idx: validIndexes[0] };
+  } else {
+    // Roba una carta
+    const drawn = drawCard(game, botIdx);
+    if (isCardValid(drawn, pileCard, currentColor)) {
+      return { play: true, idx: hand.length - 1 };
+    } else {
+      return { play: false };
     }
   }
-  return null;
 }
 
 // --- Endpoints ---
@@ -120,77 +143,149 @@ app.post('/start', (req, res) => {
 
 // Play card
 app.post('/play', (req, res) => {
-  const { gameId, carta, idx, colorElegido } = req.body;
+  console.log('POST /play BODY:', req.body);
+  const { gameId, card, idx, chosenColor } = req.body;
   const game = games[gameId];
-  if (!game || game.finished) return res.status(400).json({ error: 'Game not found or finished' });
-  if (game.turn !== 0) return res.status(400).json({ error: 'Not your turn' });
+  if (!game) {
+    console.error('Game not found:', gameId);
+    return res.status(400).json({ error: 'Game not found or finished' });
+  }
+  if (game.finished) {
+    console.error('Game already finished:', gameId);
+    return res.status(400).json({ error: 'Game not found or finished' });
+  }
+  if (game.turn !== 0) {
+    console.error('Not your turn:', gameId);
+    return res.status(400).json({ error: 'Not your turn' });
+  }
   const hand = game.hands[0];
-  // Validate card
-  if (!isCardValid(carta, game.pile[game.pile.length-1], game.currentColor)) {
-    return res.status(400).json({ error: 'Invalid card' });
+  const pileCard = game.pile[game.pile.length-1];
+  const currentColor = game.currentColor;
+  let played = false;
+  // Validación de carta
+  console.log(card,req.body.card)
+  if (!card || typeof card !== 'object' || !('color' in card)) {
+    console.error('Carta inválida o no enviada:', card);
+    return res.status(400).json({ error: 'Carta inválida o no enviada' });
   }
-  // Play card
-  hand.splice(idx, 1);
-  game.pile.push(carta);
-  // Change color if wild
-  if (carta.color === 'wild') {
-    game.currentColor = colorElegido || 'red';
-  } else {
-    game.currentColor = carta.color;
-  }
-  // Special effects
-  let skip = false, draw = 0;
-  if (carta.type === 'skip') skip = true;
-  if (carta.type === 'reverse') game.direction *= -1;
-  if (carta.type === 'draw2') draw = 2;
-  if (carta.type === 'wild4') draw = 4;
-  // Next turn
-  game.turn = nextTurn(game.turn, game.direction, 4);
-  if (skip) game.turn = nextTurn(game.turn, game.direction, 4);
-  // Draw cards if needed
-  if (draw > 0) {
-    for (let i = 0; i < draw; i++) {
-      game.hands[game.turn].push(game.deck.pop());
+
+  // Validar jugada del cliente
+  if (idx !== undefined && isCardValid(card, pileCard, currentColor)) {
+    // Jugar carta
+    const playedCard = hand.splice(idx, 1)[0];
+    game.pile.push(playedCard);
+    played = true;
+    // Cambiar color si es wild
+    if (playedCard.color === 'wild') {
+      game.currentColor = chosenColor || 'red';
+    } else {
+      game.currentColor = playedCard.color;
     }
+    // Efectos especiales
+    let skip = false, draw = 0;
+    if (playedCard.type === 'skip') skip = true;
+    if (playedCard.type === 'reverse') game.direction *= -1;
+    if (playedCard.type === 'draw2') draw = 2;
+    if (playedCard.type === 'wild4') draw = 4;
+    // Siguiente turno
     game.turn = nextTurn(game.turn, game.direction, 4);
-  }
-  // Simulate bots until it's the client's turn or someone wins
-  while (game.turn !== 0 && !game.finished) {
-    const botIdx = game.turn;
-    const botHand = game.hands[botIdx];
-    const play = simulateBot(PLAYERS[botIdx], botHand, game.pile[game.pile.length-1], game.currentColor);
-    if (play) {
-      // Bot plays card
-      const botCard = botHand.splice(play.idx, 1)[0];
-      game.pile.push(botCard);
-      if (botCard.color === 'wild') {
-        const colorsInHand = botHand.filter(c => c.color !== 'wild').map(c => c.color);
-        game.currentColor = colorsInHand.length ? colorsInHand.sort((a,b) => colorsInHand.filter(x=>x===a).length - colorsInHand.filter(x=>x===b).length).pop() : 'red';
-      } else {
-        game.currentColor = botCard.color;
+    if (skip) game.turn = nextTurn(game.turn, game.direction, 4);
+    if (draw > 0) {
+      for (let i = 0; i < draw; i++) {
+        drawCard(game, game.turn);
       }
-      let skipBot = false, drawBot = 0;
-      if (botCard.type === 'skip') skipBot = true;
-      if (botCard.type === 'reverse') game.direction *= -1;
-      if (botCard.type === 'draw2') drawBot = 2;
-      if (botCard.type === 'wild4') drawBot = 4;
       game.turn = nextTurn(game.turn, game.direction, 4);
-      if (skipBot) game.turn = nextTurn(game.turn, game.direction, 4);
-      if (drawBot > 0) {
-        for (let i = 0; i < drawBot; i++) {
-          game.hands[game.turn].push(game.deck.pop());
+    }
+  } else {
+    // No tiene carta válida, roba una
+    const drawn = drawCard(game, 0);
+    if (isCardValid(drawn, pileCard, currentColor)) {
+      // Si la carta robada es válida, la juega automáticamente
+      const playedCard = hand.pop();
+      game.pile.push(playedCard);
+      if (playedCard.color === 'wild') {
+        game.currentColor = chosenColor || 'red';
+      } else {
+        game.currentColor = playedCard.color;
+      }
+      let skip = false, draw = 0;
+      if (playedCard.type === 'skip') skip = true;
+      if (playedCard.type === 'reverse') game.direction *= -1;
+      if (playedCard.type === 'draw2') draw = 2;
+      if (playedCard.type === 'wild4') draw = 4;
+      game.turn = nextTurn(game.turn, game.direction, 4);
+      if (skip) game.turn = nextTurn(game.turn, game.direction, 4);
+      if (draw > 0) {
+        for (let i = 0; i < draw; i++) {
+          drawCard(game, game.turn);
         }
         game.turn = nextTurn(game.turn, game.direction, 4);
       }
     } else {
-      // Bot draws card
-      if (game.deck.length === 0) break;
-      botHand.push(game.deck.pop());
+      // No puede jugar, pierde turno
       game.turn = nextTurn(game.turn, game.direction, 4);
     }
-    if (botHand.length === 0) {
-      game.finished = true;
+  }
+
+  // Simular bots
+  while (game.turn !== 0 && !game.finished) {
+    const botIdx = game.turn;
+    const botHand = game.hands[botIdx];
+    const pileCard = game.pile[game.pile.length-1];
+    const currentColor = game.currentColor;
+    let botAction = simulateBot(game, botIdx);
+    if (botAction.play) {
+      const playedCard = botHand.splice(botAction.idx, 1)[0];
+      game.pile.push(playedCard);
+      if (playedCard.color === 'wild') {
+        const colorsInHand = botHand.filter(c => c.color !== 'wild').map(c => c.color);
+        game.currentColor = colorsInHand.length ? colorsInHand.sort((a,b) => colorsInHand.filter(x=>x===a).length - colorsInHand.filter(x=>x===b).length).pop() : 'red';
+      } else {
+        game.currentColor = playedCard.color;
+      }
+      let skip = false, draw = 0;
+      if (playedCard.type === 'skip') skip = true;
+      if (playedCard.type === 'reverse') game.direction *= -1;
+      if (playedCard.type === 'draw2') draw = 2;
+      if (playedCard.type === 'wild4') draw = 4;
+      game.turn = nextTurn(game.turn, game.direction, 4);
+      if (skip) game.turn = nextTurn(game.turn, game.direction, 4);
+      if (draw > 0) {
+        for (let i = 0; i < draw; i++) {
+          drawCard(game, game.turn);
+        }
+        game.turn = nextTurn(game.turn, game.direction, 4);
+      }
+    } else {
+      // Bot no puede jugar, roba una
+      const drawn = drawCard(game, botIdx);
+      if (isCardValid(drawn, pileCard, currentColor)) {
+        const playedCard = botHand.pop();
+        game.pile.push(playedCard);
+        if (playedCard.color === 'wild') {
+          const colorsInHand = botHand.filter(c => c.color !== 'wild').map(c => c.color);
+          game.currentColor = colorsInHand.length ? colorsInHand.sort((a,b) => colorsInHand.filter(x=>x===a).length - colorsInHand.filter(x=>x===b).length).pop() : 'red';
+        } else {
+          game.currentColor = playedCard.color;
+        }
+        let skip = false, draw = 0;
+        if (playedCard.type === 'skip') skip = true;
+        if (playedCard.type === 'reverse') game.direction *= -1;
+        if (playedCard.type === 'draw2') draw = 2;
+        if (playedCard.type === 'wild4') draw = 4;
+        game.turn = nextTurn(game.turn, game.direction, 4);
+        if (skip) game.turn = nextTurn(game.turn, game.direction, 4);
+        if (draw > 0) {
+          for (let i = 0; i < draw; i++) {
+            drawCard(game, game.turn);
+          }
+          game.turn = nextTurn(game.turn, game.direction, 4);
+        }
+      } else {
+        game.turn = nextTurn(game.turn, game.direction, 4);
+      }
     }
+    if (botHand.length === 0) game.finished = true;
   }
   if (hand.length === 0) game.finished = true;
   res.json({

@@ -4,7 +4,7 @@ let gameState = null;
 async function startGame() {
   const res = await fetch('http://localhost:3001/start', { method: 'POST' });
   const data = await res.json();
-  gameId = data.partidaId;
+  gameId = data.gameId;
   gameState = data;
   saveState();
   renderBoard(data);
@@ -107,8 +107,8 @@ async function playCard(idx) {
   const res = await fetch('http://localhost:3001/play', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ partidaId: gameId, carta: card, idx, colorElegido: chosenColor })
-  });
+    body: JSON.stringify({ gameId, card, idx, chosenColor })
+});
   const data = await res.json();
   gameState = { ...gameState, ...data };
   saveState();
