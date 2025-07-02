@@ -11,7 +11,6 @@ async function startGame() {
   const data = await res.json();
   gameId = data.gameId;
   gameState = data;
-  console.log('INICIANDO JUEGO',data)
   saveState();
   connectWebSocket();
   renderBoard(data);
@@ -27,10 +26,22 @@ function connectWebSocket() {
     const msg = JSON.parse(event.data);
     console.log(`WebSocket message: ${msg.type}`, msg);
     if (msg.type === 'subscribed') return;
+    if (msg.type === 'game_finished') {
+      // Mostrar alerta con el ganador
+      alert(msg.winner === PLAYER_NAMES[0] ? '¡Felicidades, ganaste!' : `¡${msg.winner} ha ganado la partida!`);
+      localStorage.removeItem('uno_gameId');
+      localStorage.removeItem('uno_state');
+      setTimeout(() => location.reload(), 1000);
+      return;
+    }
     if (msg.gameState) {
       gameState = msg.gameState;
       saveState();
       renderBoard(gameState, msg);
+      showTurnInfo(msg);
+    }
+    // Manejar mensajes que no tienen gameState
+    if (msg.type === 'uno_warning' || msg.type === 'uno_penalty') {
       showTurnInfo(msg);
     }
   };
@@ -91,6 +102,13 @@ function renderBoard(data, lastAction = null) {
   document.getElementById('deck').innerHTML = `<img src="cartas/back.jpg" class="card-img" alt="deck" style="cursor:${canDraw ? 'pointer' : 'not-allowed'};" ${canDraw ? 'onclick="drawFromDeck()"' : ''}>`;
   document.getElementById('pile').innerHTML = renderCard(data.discardPile);
   showStatus(data, lastAction);
+  
+  // Mostrar botón de UNO si el cliente tiene una carta
+  if (data.clientCards.length === 1) {
+    showUnoButton();
+  } else {
+    hideUnoButton();
+  }
 }
 
 function cardValueToImage(card) {
@@ -140,9 +158,7 @@ function isCardValid(card, discardPile, currentColor) {
 }
 
 async function playCard(cardId) {
-  console.log(cardId,gameState)
   const card  = gameState.clientCards.find(el=> el.id === String(cardId))
-  console.log('PLAYING CARD',card)
   if (gameState.turn !== 0 || gameState.finished) return; // Solo puedes jugar en tu turno
   let chosenColor = null;
   if (card.color === 'wild') {
@@ -155,7 +171,6 @@ async function playCard(cardId) {
     body: JSON.stringify({ gameId, card, chosenColor })
   });
   const data = await res.json();
-  console.log('ENVIANDO CARTA ----',{ gameId, card, chosenColor },)
   gameState = { ...gameState, ...data };
   saveState();
   renderBoard(gameState);
@@ -177,15 +192,50 @@ async function drawFromDeck() {
   showTurnInfo({ type: 'client_draw_from_deck', player: 'You', card: data.card });
 }
 
+async function sayUno() {
+  if (gameState.clientCards.length !== 1) return;
+  const res = await fetch('http://localhost:3001/uno', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ gameId })
+  });
+  const data = await res.json();
+  if (data.success) {
+    gameState = { ...gameState, ...data.gameState };
+    saveState();
+    renderBoard(gameState);
+    showTurnInfo({ type: 'client_uno', player: 'You' });
+    hideUnoButton();
+  }
+}
+
+function showUnoButton() {
+  let btn = document.getElementById('uno-btn');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'uno-btn';
+    btn.textContent = '¡UNO!';
+    btn.style = 'position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);z-index:50;padding:20px 40px;font-size:2em;font-weight:bold;background:#ffeb3b;color:#000;border:3px solid #000;border-radius:15px;box-shadow:0 4px 20px #0004;cursor:pointer;transition:all 0.2s;animation:unoButtonPulse 1s ease-in-out infinite alternate;';
+    btn.onclick = sayUno;
+    btn.onmouseover = () => btn.style.background = '#ffd700';
+    btn.onmouseout = () => btn.style.background = '#ffeb3b';
+    document.body.appendChild(btn);
+  }
+  btn.style.display = 'block';
+}
+
+function hideUnoButton() {
+  const btn = document.getElementById('uno-btn');
+  if (btn) {
+    btn.style.display = 'none';
+  }
+}
+
 function showStatus(data, lastAction = null) {
   let msg = '';
-  let turnPlayer = ['Player 1', 'Player 2', 'Player 3', 'Player 4'][data.turn];
   if (data.finished) {
     msg = data.clientCards.length === 0 ? 'Congratulations, you won the game!' : 'You lost!';
   } 
-//   else {
-//     msg = `<b>Turn:</b> <span class="active-player-name">${turnPlayer}</span>`;
-//   }
   let div = document.getElementById('game-status');
   if (!div) {
     div = document.createElement('div');
@@ -205,6 +255,12 @@ function showTurnInfo(msg) {
     info = `<b>${msg.player}</b> drew a card from the deck.`;
   } else if (msg.type === 'bot_draw') {
     info = `<b>${msg.player}</b> drew a card and passed.`;
+  } else if (msg.type === 'bot_uno') {
+    info = `<b>${msg.player} dice UNO!</b>`;
+  } else if (msg.type === 'uno_warning') {
+    info = `<b>¡Tienes una carta! ¡Di UNO antes de 4 segundos!</b>`;
+  } else if (msg.type === 'uno_penalty') {
+    info = `<b>¡No dijiste UNO! +2 cartas como penalización.</b>`;
   } else if (msg.type === 'client_draw_from_deck') {
     info = `<b>You drew a card from the deck.</b>`;
   } else if (msg.type === 'client_draw') {
@@ -214,6 +270,8 @@ function showTurnInfo(msg) {
     if (msg.card.color === 'wild') {
       info += ` and chose <span style=\"color:${msg.chosenColor}\">${msg.chosenColor}</span>`;
     }
+  } else if (msg.type === 'client_uno') {
+    info = `<b>¡Tú dices UNO!</b>`;
   }
   // Notificación de cambio de color por comodín
   if ((msg.type === 'bot_play' || msg.type === 'client_play' || msg.type === 'client_draw_play') && msg.card && msg.card.color === 'wild' && msg.chosenColor) {
@@ -237,6 +295,32 @@ function showTurnInfo(msg) {
     div.style.background = '#e3f2fd';
   } else {
     div.style.background = '#fff3';
+  }
+  
+  // Estilo especial para el mensaje UNO
+  if (msg.type === 'bot_uno' || msg.type === 'client_uno') {
+    div.style.background = '#ffeb3b';
+    div.style.color = '#000';
+    div.style.fontWeight = 'bold';
+    div.style.fontSize = '1.3em';
+    div.style.animation = 'unoPulse 1s ease-in-out';
+  }
+  
+  // Estilo especial para advertencia de UNO
+  if (msg.type === 'uno_warning') {
+    div.style.background = '#ff9800';
+    div.style.color = '#fff';
+    div.style.fontWeight = 'bold';
+    div.style.fontSize = '1.2em';
+    div.style.animation = 'unoWarning 0.5s ease-in-out infinite alternate';
+  }
+  
+  // Estilo especial para penalización de UNO
+  if (msg.type === 'uno_penalty') {
+    div.style.background = '#f44336';
+    div.style.color = '#fff';
+    div.style.fontWeight = 'bold';
+    div.style.fontSize = '1.2em';
   }
 }
 
@@ -292,6 +376,19 @@ style.innerHTML = `
   background: #e3f2fd;
   border-radius: 6px;
   padding: 2px 8px;
+}
+@keyframes unoPulse {
+  0% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.1); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+@keyframes unoWarning {
+  0% { background: #ff9800; }
+  100% { background: #ff5722; }
+}
+@keyframes unoButtonPulse {
+  0% { transform: translate(-50%, -50%) scale(1); }
+  100% { transform: translate(-50%, -50%) scale(1.1); }
 }
 `;
 document.head.appendChild(style); 

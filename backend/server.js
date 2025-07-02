@@ -17,6 +17,7 @@ app.use(express.json());
 // Estado en memoria
 const games = {}; // Estado de cada partida por id
 const wsClients = {}; // Clientes WebSocket por id de partida
+const unoTimers = {}; // Timers para penalización de UNO por partida
 
 // --- Funciones de utilidades ---
 
@@ -39,13 +40,11 @@ function applySpecialEffects(game, playedCard) {
 }
 
 // Aplica penalización de robo de cartas y avanza turno
-function applyDrawPenalty(game, gameId, draw, sendUpdate = true) {
-  const currentTurn = game.turn
-  game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
+function applyDrawPenalty(game, gameId, draw, currentTurn, sendUpdate = true, ) {
+  console.log(`${currentTurn} roba carta`)
   for (let i = 0; i < draw; i++) {
     drawCard(game, currentTurn);
   }
-  console.log('agregando una carta',draw,  game.hands)
   if (sendUpdate) {
     sendWsUpdate(gameId, {
       type: 'draw_penalty',
@@ -55,7 +54,47 @@ function applyDrawPenalty(game, gameId, draw, sendUpdate = true) {
     });
   }
   // Bandera para que el bot penalizado pierda su turno
-  game.skipBotTurn = true;
+  // game.skipBotTurn = true;
+}
+
+// Aplica penalización por no decir UNO
+function applyUnoPenalty(game, gameId) {
+  // El cliente debe robar 2 cartas
+  for (let i = 0; i < 2; i++) {
+    drawCard(game, 0);
+  }
+  sendWsUpdate(gameId, {
+    type: 'uno_penalty',
+    player: PLAYERS[0],
+    amount: 2,
+    gameState: getGameState(game, gameId)
+  });
+}
+
+// Inicia el timer para que el cliente diga UNO
+function startUnoTimer(gameId) {
+  // Limpiar timer anterior si existe
+  if (unoTimers[gameId]) {
+    clearTimeout(unoTimers[gameId]);
+  }
+  
+  unoTimers[gameId] = setTimeout(async () => {
+    const game = games[gameId];
+    if (game && game.hands[0].length === 1) {
+      applyUnoPenalty(game, gameId);
+      // Continuar el juego con los bots después de la penalización
+      await simulateBotsWithDelay(game, gameId);
+    }
+    delete unoTimers[gameId];
+  }, 4000); // 4 segundos
+}
+
+// Cancela el timer de UNO
+function cancelUnoTimer(gameId) {
+  if (unoTimers[gameId]) {
+    clearTimeout(unoTimers[gameId]);
+    delete unoTimers[gameId];
+  }
 }
 
 // Devuelve el estado actual de la partida para el frontend
@@ -82,13 +121,7 @@ function getGameState(game, gameId) {
 // Simula los turnos de los bots con delays y aplica reglas
 async function simulateBotsWithDelay(game, gameId) {
   while (game.turn !== 0 && !game.finished) {
-    // Si el bot fue penalizado, pierde el turno y resetea la bandera
-    if (game.skipBotTurn) {
-      game.skipBotTurn = false;
-      // Solo avanza el turno, no juega ni roba
-      game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
-      continue;
-    }
+    console.log(`SIMULANDO JUEGO DEL PLAYER ${game.turn +1}`)
     const botIdx = game.turn;
     const botHand = game.hands[botIdx];
     const discardPile = game.pile[game.pile.length-1];
@@ -112,9 +145,10 @@ async function simulateBotsWithDelay(game, gameId) {
       // Aplica efectos especiales
       const { skip, draw } = applySpecialEffects(game, playedCard);
       game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
-      if (skip) game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
+      const currentTurn = game.turn
+      if (skip || draw > 0) game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
       if (draw > 0) {
-        applyDrawPenalty(game, gameId, draw);
+        applyDrawPenalty(game, gameId, draw,currentTurn);
       }
       sendWsUpdate(gameId, {
         type: 'bot_play',
@@ -122,6 +156,25 @@ async function simulateBotsWithDelay(game, gameId) {
         card: playedCard,
         gameState: getGameState(game, gameId)
       });
+      
+      // Verificar si el bot tiene solo una carta después de jugar
+      if (botHand.length === 1) {
+        sendWsUpdate(gameId, {
+          type: 'bot_uno',
+          player: PLAYERS[botIdx],
+          gameState: getGameState(game, gameId)
+        });
+      }
+      // Si el bot se queda sin cartas, termina la partida y notifica
+      if (botHand.length === 0) {
+        game.finished = true;
+        sendWsUpdate(gameId, {
+          type: 'game_finished',
+          winner: PLAYERS[botIdx],
+          gameState: getGameState(game, gameId)
+        });
+        break;
+      }
     } else {
       await sleep(2000); // Simula tiempo de "robar"
       const drawn = drawCard(game, botIdx);
@@ -136,10 +189,11 @@ async function simulateBotsWithDelay(game, gameId) {
           game.currentColor = playedCard.color;
         }
         const { skip, draw } = applySpecialEffects(game, playedCard);
+        const currentTurn = game.turn
         game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
         if (skip) game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
         if (draw > 0) {
-          applyDrawPenalty(game, gameId, draw);
+          applyDrawPenalty(game, gameId, draw, currentTurn);
         }
         sendWsUpdate(gameId, {
           type: 'bot_play',
@@ -148,6 +202,25 @@ async function simulateBotsWithDelay(game, gameId) {
           chosenColor,
           gameState: getGameState(game, gameId)
         });
+        
+        // Verificar si el bot tiene solo una carta después de jugar
+        if (botHand.length === 1) {
+          sendWsUpdate(gameId, {
+            type: 'bot_uno',
+            player: PLAYERS[botIdx],
+            gameState: getGameState(game, gameId)
+          });
+        }
+        // Si el bot se queda sin cartas, termina la partida y notifica
+        if (botHand.length === 0) {
+          game.finished = true;
+          sendWsUpdate(gameId, {
+            type: 'game_finished',
+            winner: PLAYERS[botIdx],
+            gameState: getGameState(game, gameId)
+          });
+          break;
+        }
       } else {
         game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
         sendWsUpdate(gameId, {
@@ -158,7 +231,6 @@ async function simulateBotsWithDelay(game, gameId) {
         });
       }
     }
-    if (botHand.length === 0) game.finished = true;
   }
 }
 
@@ -182,9 +254,10 @@ app.post('/play', async (req, res) => {
   const discardPile = game.pile[game.pile.length-1];
   const currentColor = game.currentColor;
   // Validación de carta
-  if (!card || typeof card !== 'object' || !('color' in card)) {
+  if (!card || typeof card !== 'object' || !('color' in card) || !isCardValid(card, discardPile, currentColor)) {
     return res.status(400).json({ error: 'Invalid Card' });
   }
+  console.log(isCardValid(card, discardPile, currentColor))
   // Si la jugada es válida
   if (isCardValid(card, discardPile, currentColor)) {
     // Añadimos la carta seleccionada a la zona de descarte
@@ -200,9 +273,12 @@ app.post('/play', async (req, res) => {
     // Aplica efectos especiales
     const { skip, draw } = applySpecialEffects(game, card);
     game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
-    if (skip) game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
+    const currentTurn = game.turn
+    console.log('Aqui')
+    console.log(skip, draw, currentTurn, game.turn)
+    if (skip || draw > 0) game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
     if (draw > 0) {
-      applyDrawPenalty(game, gameId, draw);
+      applyDrawPenalty(game, gameId, draw,currentTurn);
     }
     sendWsUpdate(gameId, {
       type: 'client_play',
@@ -211,78 +287,82 @@ app.post('/play', async (req, res) => {
       chosenColor: card.color === 'wild' ? game.currentColor : null,
       gameState: getGameState(game, gameId)
     });
-  } else {
-    // Si no tiene jugada válida, roba una carta
-    const drawn = drawCard(game, 0);
-    if (isCardValid(drawn, discardPile, currentColor)) {
-      // Si la carta robada es válida, la juega automáticamente
-      const card = hand.pop();
-      game.pile.push(card);
-      if (card.color === 'wild') {
-        game.currentColor = chosenColor || 'red';
-      } else {
-        game.currentColor = card.color;
-      }
-      const { skip, draw } = applySpecialEffects(game, card);
-      game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
-      if (skip) game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
-      if (draw > 0) {
-        applyDrawPenalty(game, gameId, draw);
-      }
+    
+    // Verificar si el cliente tiene solo una carta después de jugar
+    if (game.hands[0].length === 1) {
       sendWsUpdate(gameId, {
-        type: 'client_draw_play',
-        player: PLAYERS[0],
-        card: card,
-        chosenColor: card.color === 'wild' ? game.currentColor : null,
-        gameState: getGameState(game, gameId)
-      });
-    } else {
-      // No puede jugar, pierde turno
-      game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
-      sendWsUpdate(gameId, {
-        type: 'client_draw',
+        type: 'uno_warning',
         player: PLAYERS[0],
         gameState: getGameState(game, gameId)
       });
+      startUnoTimer(gameId);
+      // No continuar con los bots, esperar a que el cliente diga UNO
+      res.json(getGameState(game, gameId));
+      return;
+    }
+    // Si el cliente se queda sin cartas, termina la partida y notifica
+    if (game.hands[0].length === 0) {
+      game.finished = true;
+      sendWsUpdate(gameId, {
+        type: 'game_finished',
+        winner: PLAYERS[0],
+        gameState: getGameState(game, gameId)
+      });
+      res.json(getGameState(game, gameId));
+      return;
     }
   }
-  // Simula los turnos de los bots
+  // Simula los turnos de los bots solo si no se activó el timer de UNO
   await simulateBotsWithDelay(game, gameId);
-//   if (hand.length === 0) game.finished = true;
   res.json(getGameState(game, gameId));
 });
 
 // Endpoint para robar carta manualmente
-app.post('/draw', (req, res) => {
+app.post('/draw', async (req, res) => {
   const { gameId } = req.body;
   const game = games[gameId];
   if (!game || game.finished) return res.status(400).json({ error: 'Game not found or finished' });
   if (game.turn !== 0) return res.status(400).json({ error: 'Not your turn' });
+  
+  const discardPile = game.pile[game.pile.length-1];
+  const currentColor = game.currentColor;
   const card = drawCard(game, 0);
+  
+  // Verificar si la carta robada es válida
+  if (!isCardValid(card, discardPile, currentColor)) {
+    // Si la carta robada no es válida, pasa el turno automáticamente
+    game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
+  }
+  
   sendWsUpdate(gameId, {
     type: 'client_draw_from_deck',
     player: PLAYERS[0],
     card,
     gameState: getGameState(game, gameId)
   });
+  await simulateBotsWithDelay(game, gameId);
+  
   res.json({ card, clientCards: game.hands[0], gameState: getGameState(game, gameId) });
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// Endpoint para decir UNO
+app.post('/uno', async (req, res) => {
+  const { gameId } = req.body;
+  const game = games[gameId];
+  if (!game || game.finished) return res.status(400).json({ error: 'Game not found or finished' });
+  if (game.hands[0].length !== 1) return res.status(400).json({ error: 'You must have exactly 1 card to say UNO' });
+  
+  // Cancelar el timer de penalización
+  cancelUnoTimer(gameId);
+  
+  sendWsUpdate(gameId, {
+    type: 'client_uno',
+    player: PLAYERS[0],
+    gameState: getGameState(game, gameId)
+  });
+  await simulateBotsWithDelay(game, gameId);
+  res.json({ success: true, gameState: getGameState(game, gameId) });
+});
 
 // --- WebSocket Server ---
 
