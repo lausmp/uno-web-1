@@ -6,7 +6,7 @@ import { WebSocketServer } from 'ws';
 // Importa funciones y constantes de inicialización de partida
 import { PLAYERS, initGameState } from './gameInit.js';
 // Importa utilidades generales del juego
-import { drawCard, getValidCards, isCardValid, nextTurnWithDirection, sleep } from './gameUtils.js';
+import { calculateHandScore, drawCard, getValidCards, isCardValid, nextTurnWithDirection, sleep } from './gameUtils.js';
 
 const app = express();
 const PORT = 3001;
@@ -18,6 +18,7 @@ app.use(express.json());
 const games = {}; // Estado de cada partida por id
 const wsClients = {}; // Clientes WebSocket por id de partida
 const unoTimers = {}; // Timers para penalización de UNO por partida
+const MAX_SCORE = 200;
 
 // --- Funciones de utilidades ---
 
@@ -97,6 +98,66 @@ function cancelUnoTimer(gameId) {
   }
 }
 
+// Inicializa o reinicia los puntajes si no existen
+function ensureScores(game) {
+  if (!game.scores) {
+    game.scores = [0, 0, 0, 0];
+  }
+}
+
+// Calcula y suma los puntos de la ronda al ganador
+function handleRoundEnd(game, gameId, winnerIdx) {
+  ensureScores(game);
+  let roundScore = 0;
+  for (let i = 0; i < 4; i++) {
+    if (i !== winnerIdx) {
+      roundScore += calculateHandScore(game.hands[i]);
+    }
+  }
+  game.scores[winnerIdx] += roundScore;
+  sendWsUpdate(gameId, {
+    type: 'round_score',
+    winner: PLAYERS[winnerIdx],
+    winnerIdx,
+    roundScore,
+    scores: game.scores,
+    gameState: getGameState(game, gameId)
+  });
+  // ¿Alguien llegó a 500?
+  if (game.scores[winnerIdx] >= MAX_SCORE) {
+    game.finished = true;
+    sendWsUpdate(gameId, {
+      type: 'game_over',
+      winner: PLAYERS[winnerIdx],
+      scores: game.scores,
+      gameState: getGameState(game, gameId)
+    });
+    // Reiniciar todo después de un pequeño delay
+    setTimeout(() => {
+      const newState = initGameState();
+      newState.scores = [0, 0, 0, 0];
+      games[gameId] = newState;
+      sendWsUpdate(gameId, {
+        type: 'new_game',
+        scores: newState.scores,
+        gameState: getGameState(newState, gameId)
+      });
+    }, 5000);
+  } else {
+    // Reiniciar solo la ronda después de un pequeño delay
+    setTimeout(() => {
+      const newState = initGameState();
+      newState.scores = [...game.scores];
+      games[gameId] = newState;
+      sendWsUpdate(gameId, {
+        type: 'new_round',
+        scores: newState.scores,
+        gameState: getGameState(newState, gameId)
+      });
+    }, 4000);
+  }
+}
+
 // Devuelve el estado actual de la partida para el frontend
 function getGameState(game, gameId) {
   return {
@@ -114,7 +175,8 @@ function getGameState(game, gameId) {
     turn: game.turn,
     direction: game.direction,
     message: game.finished ? 'Game finished!' : undefined,
-    gameId
+    gameId,
+    scores: game.scores || [0,0,0,0]
   };
 }
 
@@ -168,11 +230,7 @@ async function simulateBotsWithDelay(game, gameId) {
       // Si el bot se queda sin cartas, termina la partida y notifica
       if (botHand.length === 0) {
         game.finished = true;
-        sendWsUpdate(gameId, {
-          type: 'game_finished',
-          winner: PLAYERS[botIdx],
-          gameState: getGameState(game, gameId)
-        });
+        handleRoundEnd(game, gameId, botIdx);
         break;
       }
     } else {
@@ -214,11 +272,7 @@ async function simulateBotsWithDelay(game, gameId) {
         // Si el bot se queda sin cartas, termina la partida y notifica
         if (botHand.length === 0) {
           game.finished = true;
-          sendWsUpdate(gameId, {
-            type: 'game_finished',
-            winner: PLAYERS[botIdx],
-            gameState: getGameState(game, gameId)
-          });
+          handleRoundEnd(game, gameId, botIdx);
           break;
         }
       } else {
@@ -239,6 +293,7 @@ async function simulateBotsWithDelay(game, gameId) {
 // Inicia una nueva partida
 app.post('/start', (req, res) => {
   const gameState = initGameState();
+  gameState.scores = [0, 0, 0, 0]; // Asegura que siempre haya scores
   const gameId = uuidv4();
   games[gameId] = gameState;
   res.json(getGameState(games[gameId], gameId));
@@ -303,11 +358,7 @@ app.post('/play', async (req, res) => {
     // Si el cliente se queda sin cartas, termina la partida y notifica
     if (game.hands[0].length === 0) {
       game.finished = true;
-      sendWsUpdate(gameId, {
-        type: 'game_finished',
-        winner: PLAYERS[0],
-        gameState: getGameState(game, gameId)
-      });
+      handleRoundEnd(game, gameId, 0);
       res.json(getGameState(game, gameId));
       return;
     }

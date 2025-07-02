@@ -44,4 +44,19 @@ export function drawCard(game, playerIdx) {
 // Pausa asíncrona (para simular turnos de bots)
 export function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Calcula la puntuación de una mano de cartas según las reglas de UNO
+export function calculateHandScore(hand) {
+  let score = 0;
+  for (const card of hand) {
+    if (card.type === 'number') {
+      score += parseInt(card.value, 10);
+    } else if (card.type === 'draw2' || card.type === 'reverse' || card.type === 'skip') {
+      score += 20;
+    } else if (card.type === 'wild' || card.type === 'wild4') {
+      score += 50;
+    }
+  }
+  return score;
 } 

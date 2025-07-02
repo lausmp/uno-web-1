@@ -3,6 +3,7 @@ let gameState = null;
 let ws = null;
 let lastBotAction = null;
 let currentTurnPlayer = null;
+let gameReallyOver = false; // Bandera para evitar doble alerta y reset
 
 const PLAYER_NAMES = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
 
@@ -28,11 +29,32 @@ function connectWebSocket() {
     if (msg.type === 'subscribed') return;
     if (msg.type === 'game_finished') {
       // Mostrar alerta con el ganador
-      alert(msg.winner === PLAYER_NAMES[0] ? '¡Felicidades, ganaste!' : `¡${msg.winner} ha ganado la partida!`);
-      localStorage.removeItem('uno_gameId');
-      localStorage.removeItem('uno_state');
-      setTimeout(() => location.reload(), 1000);
+      if (!gameReallyOver) {
+        alert(msg.winner === PLAYER_NAMES[0] ? '¡Felicidades, ganaste!' : `¡${msg.winner} ha ganado la partida!`);
+        localStorage.removeItem('uno_gameId');
+        localStorage.removeItem('uno_state');
+        setTimeout(() => location.reload(), 1000);
+      }
       return;
+    }
+    if (msg.type === 'round_score') {
+      // Notificación de fin de ronda y puntaje
+      const winnerMsg = msg.winnerIdx === 0 ? '¡Ganaste la ronda!' : `${msg.winner} ganó la ronda.`;
+      alert(`${winnerMsg}\nPuntos obtenidos: ${msg.roundScore}\nMarcador: ${msg.scores.join(' - ')}`);
+    }
+    if (msg.type === 'game_over') {
+      // Notificación de fin de juego
+      gameReallyOver = true;
+      const winnerMsg = msg.winner === PLAYER_NAMES[0] ? '¡Felicidades, ganaste el juego!' : `¡${msg.winner} ha ganado el juego!`;
+      alert(`${winnerMsg}\nMarcador final: ${msg.scores.join(' - ')}`);
+    }
+    if (msg.type === 'new_round') {
+      // Notificación de nueva ronda
+      alert('¡Nueva ronda! El juego continúa.');
+    }
+    if (msg.type === 'new_game') {
+      alert('¡El juego se ha reiniciado!');
+      gameReallyOver = false;
     }
     if (msg.gameState) {
       gameState = msg.gameState;
@@ -102,7 +124,8 @@ function renderBoard(data, lastAction = null) {
   document.getElementById('deck').innerHTML = `<img src="cartas/back.jpg" class="card-img" alt="deck" style="cursor:${canDraw ? 'pointer' : 'not-allowed'};" ${canDraw ? 'onclick="drawFromDeck()"' : ''}>`;
   document.getElementById('pile').innerHTML = renderCard(data.discardPile);
   showStatus(data, lastAction);
-  
+  // Mostrar el marcador de puntaje
+  renderScoreboard(data.scores);
   // Mostrar botón de UNO si el cliente tiene una carta
   if (data.clientCards.length === 1) {
     showUnoButton();
@@ -233,9 +256,6 @@ function hideUnoButton() {
 
 function showStatus(data, lastAction = null) {
   let msg = '';
-  if (data.finished) {
-    msg = data.clientCards.length === 0 ? 'Congratulations, you won the game!' : 'You lost!';
-  } 
   let div = document.getElementById('game-status');
   if (!div) {
     div = document.createElement('div');
@@ -391,4 +411,14 @@ style.innerHTML = `
   100% { transform: translate(-50%, -50%) scale(1.1); }
 }
 `;
-document.head.appendChild(style); 
+document.head.appendChild(style);
+
+function renderScoreboard(scores) {
+  const scoreboard = document.getElementById('scoreboard');
+  if (!scores) {
+    scoreboard.innerHTML = '';
+    return;
+  }
+  scoreboard.innerHTML = `<div style="font-size:1.1em;margin-bottom:4px;">Marcador</div>` +
+    PLAYER_NAMES.map((name, i) => `<div>${name}: <span style="color:${i===0?'#d32f2f':'#333'}">${scores[i]}</span></div>`).join('');
+} 
