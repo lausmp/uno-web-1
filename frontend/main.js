@@ -1,5 +1,10 @@
 let gameId = null;
 let gameState = null;
+let ws = null;
+let lastBotAction = null;
+let currentTurnPlayer = null;
+
+const PLAYER_NAMES = ['Stephanie', 'Player 2', 'Player 3', 'Player 4'];
 
 async function startGame() {
   const res = await fetch('http://localhost:3001/start', { method: 'POST' });
@@ -7,7 +12,29 @@ async function startGame() {
   gameId = data.gameId;
   gameState = data;
   saveState();
+  connectWebSocket();
   renderBoard(data);
+}
+
+function connectWebSocket() {
+  if (ws) ws.close();
+  ws = new WebSocket('ws://localhost:3001');
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'subscribe', gameId }));
+  };
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'subscribed') return;
+    if (msg.gameState) {
+      gameState = msg.gameState;
+      saveState();
+      renderBoard(gameState, msg);
+      showTurnInfo(msg);
+    }
+  };
+  ws.onclose = () => {
+    if (gameId && !gameState?.finished) setTimeout(connectWebSocket, 1000);
+  };
 }
 
 function saveState() {
@@ -20,36 +47,37 @@ function restoreState() {
   const state = localStorage.getItem('uno_state');
   if (gameId && state) {
     gameState = JSON.parse(state);
+    connectWebSocket();
     renderBoard(gameState);
     return true;
   }
   return false;
 }
 
-function renderBoard(data) {
-  document.getElementById('player-adrian').innerHTML = `
-    <div class="player-name">Adrian</div>
+function renderBoard(data, lastAction = null) {
+  document.getElementById('player-3').innerHTML = `
+    <div class="player-name">Player 3</div>
     ${renderBackCards(data.otherPlayers[0].count)}
     <div class="card-count">${data.otherPlayers[0].count} cards</div>
   `;
-  document.getElementById('player-cristian').innerHTML = `
-    <div class="player-name">Cristian</div>
+  document.getElementById('player-2').innerHTML = `
+    <div class="player-name">Player 2</div>
     ${renderBackCards(data.otherPlayers[1].count)}
     <div class="card-count">${data.otherPlayers[1].count} cards</div>
   `;
-  document.getElementById('player-rossana').innerHTML = `
-    <div class="player-name">Rossana</div>
+  document.getElementById('player-4').innerHTML = `
+    <div class="player-name">Player 4</div>
     ${renderBackCards(data.otherPlayers[2].count)}
     <div class="card-count">${data.otherPlayers[2].count} cards</div>
   `;
   const isMyTurn = data.turn === 0 && !data.finished;
-  document.getElementById('player-stephanie').innerHTML = `
+  document.getElementById('player-1').innerHTML = `
     <div class="player-name">Stephanie</div>
     <div>${data.clientCards.map((c, i) => renderClickableCard(c, i, isMyTurn, data)).join('')}</div>
   `;
   document.getElementById('pile').innerHTML = renderCard(data.pileCard);
   document.getElementById('deck').innerHTML = '<img src="cartas/back.jpg" class="card-img" alt="deck">';
-  showStatus(data);
+  showStatus(data, lastAction);
 }
 
 function cardValueToImage(card) {
@@ -77,7 +105,7 @@ function renderCard(card) {
 function renderClickableCard(card, idx, isMyTurn, data) {
   const isValid = isMyTurn && isCardValid(card, data.pileCard, data.currentColor);
   const name = `${card.color === 'wild' ? '' : card.color}${cardValueToImage(card)}`;
-  return `<img src="cartas/${name}.png" class="card-img${isValid ? ' playable' : ''}" alt="${name}" style="cursor:${isValid ? 'pointer' : 'default'};opacity:${isValid ? 1 : 0.5}" onclick="${isValid ? `playCard(${idx})` : ''}">`;
+  return `<img src="cartas/${name}.png" class="card-img${isValid ? ' playable' : ''}" alt="${name}" style="cursor:${isValid ? 'pointer' : 'not-allowed'};opacity:${isValid ? 1 : 0.5}" ${isValid ? `onclick="playCard(${idx})"` : ''}>`;
 }
 
 function renderBackCards(count) {
@@ -98,6 +126,7 @@ function isCardValid(card, pileCard, currentColor) {
 }
 
 async function playCard(idx) {
+  if (gameState.turn !== 0 || gameState.finished) return; // Solo puedes jugar en tu turno
   const card = gameState.clientCards[idx];
   let chosenColor = null;
   if (card.color === 'wild') {
@@ -108,7 +137,7 @@ async function playCard(idx) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ gameId, card, idx, chosenColor })
-});
+  });
   const data = await res.json();
   gameState = { ...gameState, ...data };
   saveState();
@@ -116,12 +145,13 @@ async function playCard(idx) {
   if (data.finished) showEndMessage();
 }
 
-function showStatus(data) {
+function showStatus(data, lastAction = null) {
   let msg = '';
+  let turnPlayer = PLAYER_NAMES[data.turn];
   if (data.finished) {
     msg = data.clientCards.length === 0 ? 'Congratulations, you won the game!' : 'You lost!';
   } else {
-    msg = data.turn === 0 ? 'Your turn' : 'Bots turn';
+    msg = data.turn === 0 ? 'Your turn' : `Turn: <b>${turnPlayer}</b>`;
     msg += ` | Current color: <span style="color:${data.currentColor}">${data.currentColor}</span>`;
   }
   let div = document.getElementById('game-status');
@@ -132,6 +162,43 @@ function showStatus(data) {
     document.body.appendChild(div);
   }
   div.innerHTML = msg;
+}
+
+function showTurnInfo(msg) {
+  let info = '';
+  if (msg.type === 'bot_play') {
+    info = `<b>${msg.player}</b> played ${renderCard(msg.card)}`;
+    if (msg.card.color === 'wild') {
+      info += ` and chose <span style="color:${msg.chosenColor}">${msg.chosenColor}</span>`;
+    }
+  } else if (msg.type === 'bot_draw') {
+    info = `<b>${msg.player}</b> drew a card and passed.`;
+  } else if (msg.type === 'client_play') {
+    info = `<b>You played</b> ${renderCard(msg.card)}`;
+    if (msg.card.color === 'wild') {
+      info += ` and chose <span style="color:${msg.chosenColor}">${msg.chosenColor}</span>`;
+    }
+  } else if (msg.type === 'client_draw') {
+    info = `<b>You drew a card and passed.</b>`;
+  } else if (msg.type === 'client_draw_play') {
+    info = `<b>You drew and played</b> ${renderCard(msg.card)}`;
+    if (msg.card.color === 'wild') {
+      info += ` and chose <span style="color:${msg.chosenColor}">${msg.chosenColor}</span>`;
+    }
+  }
+  let div = document.getElementById('turn-info');
+  if (!div) {
+    div = document.createElement('div');
+    div.id = 'turn-info';
+    div.style = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#fff3;padding:10px 20px;border-radius:8px;font-size:1.1em;z-index:11;min-width:200px;text-align:center;';
+    document.body.appendChild(div);
+  }
+  div.innerHTML = info;
+  if (msg.type && msg.type.startsWith('bot_')) {
+    div.style.background = '#e3f2fd';
+  } else {
+    div.style.background = '#fff3';
+  }
 }
 
 function showEndMessage() {

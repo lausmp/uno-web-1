@@ -1,6 +1,8 @@
 import cors from 'cors';
 import express from 'express';
+import http from 'http';
 import { v4 as uuidv4 } from 'uuid';
+import { WebSocketServer } from 'ws';
 
 const app = express();
 const PORT = 3001;
@@ -13,10 +15,13 @@ const COLORS = ['red', 'yellow', 'green', 'blue'];
 const NUMBERS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 const SPECIALS = ['skip', 'reverse', 'draw2'];
 const WILDS = ['wild', 'wild4'];
-const PLAYERS = ['Stephanie', 'Adrian', 'Cristian', 'Rossana'];
+const PLAYERS = ['Stephanie', 'Player 2', 'Player 3', 'Player 4'];
+
+const PLAYER_ORDER = [0, 1, 2, 3]
 
 // In-memory game state (by id)
 const games = {};
+const wsClients = {};
 
 function createDeck() {
   const deck = [];
@@ -73,8 +78,10 @@ function isCardValid(card, pileCard, currentColor) {
   return false;
 }
 
-function nextTurn(turn, direction, numPlayers) {
-  return (turn + direction + numPlayers) % numPlayers;
+function nextTurnClockwise(turn, numPlayers) {
+  // Sentido de las agujas del reloj
+  const idx = PLAYER_ORDER.indexOf(turn);
+  return PLAYER_ORDER[(idx + 1) % numPlayers];
 }
 
 function getValidCards(hand, pileCard, currentColor) {
@@ -88,23 +95,121 @@ function drawCard(game, playerIdx) {
   return card;
 }
 
-function simulateBot(game, botIdx) {
-  const hand = game.hands[botIdx];
-  const pileCard = game.pile[game.pile.length-1];
-  const currentColor = game.currentColor;
-  let validIndexes = getValidCards(hand, pileCard, currentColor);
-  if (validIndexes.length > 0) {
-    // Juega la primera carta válida
-    return { play: true, idx: validIndexes[0] };
-  } else {
-    // Roba una carta
-    const drawn = drawCard(game, botIdx);
-    if (isCardValid(drawn, pileCard, currentColor)) {
-      return { play: true, idx: hand.length - 1 };
-    } else {
-      return { play: false };
-    }
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function sendWsUpdate(gameId, data) {
+  const ws = wsClients[gameId];
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify(data));
   }
+}
+
+async function simulateBotsWithDelay(game, gameId) {
+  while (game.turn !== 0 && !game.finished) {
+    const botIdx = game.turn;
+    const botHand = game.hands[botIdx];
+    const pileCard = game.pile[game.pile.length-1];
+    const currentColor = game.currentColor;
+    let validIndexes = getValidCards(botHand, pileCard, currentColor);
+    let action = null;
+    let playedCard = null;
+    let chosenColor = null;
+    if (validIndexes.length > 0) {
+      await sleep(2500); // Espera más tiempo
+      const idx = validIndexes[0];
+      playedCard = botHand.splice(idx, 1)[0];
+      game.pile.push(playedCard);
+      if (playedCard.color === 'wild') {
+        const colorsInHand = botHand.filter(c => c.color !== 'wild').map(c => c.color);
+        chosenColor = colorsInHand.length ? colorsInHand.sort((a,b) => colorsInHand.filter(x=>x===a).length - colorsInHand.filter(x=>x===b).length).pop() : 'red';
+        game.currentColor = chosenColor;
+      } else {
+        game.currentColor = playedCard.color;
+      }
+      let skip = false, draw = 0;
+      if (playedCard.type === 'skip') skip = true;
+      if (playedCard.type === 'reverse') game.direction *= -1;
+      if (playedCard.type === 'draw2') draw = 2;
+      if (playedCard.type === 'wild4') draw = 4;
+      // Sentido de las agujas del reloj
+      game.turn = nextTurnClockwise(game.turn, 4);
+      if (skip) game.turn = nextTurnClockwise(game.turn, 4);
+      if (draw > 0) {
+        for (let i = 0; i < draw; i++) {
+          drawCard(game, game.turn);
+        }
+        game.turn = nextTurnClockwise(game.turn, 4);
+      }
+      sendWsUpdate(gameId, {
+        type: 'bot_play',
+        player: PLAYERS[botIdx],
+        card: playedCard,
+        chosenColor,
+        gameState: getGameState(game, gameId)
+      });
+    } else {
+      await sleep(2000); // Espera más tiempo
+      const drawn = drawCard(game, botIdx);
+      if (isCardValid(drawn, pileCard, currentColor)) {
+        playedCard = botHand.pop();
+        game.pile.push(playedCard);
+        if (playedCard.color === 'wild') {
+          const colorsInHand = botHand.filter(c => c.color !== 'wild').map(c => c.color);
+          chosenColor = colorsInHand.length ? colorsInHand.sort((a,b) => colorsInHand.filter(x=>x===a).length - colorsInHand.filter(x=>x===b).length).pop() : 'red';
+          game.currentColor = chosenColor;
+        } else {
+          game.currentColor = playedCard.color;
+        }
+        let skip = false, draw = 0;
+        if (playedCard.type === 'skip') skip = true;
+        if (playedCard.type === 'reverse') game.direction *= -1;
+        if (playedCard.type === 'draw2') draw = 2;
+        if (playedCard.type === 'wild4') draw = 4;
+        game.turn = nextTurnClockwise(game.turn, 4);
+        if (skip) game.turn = nextTurnClockwise(game.turn, 4);
+        if (draw > 0) {
+          for (let i = 0; i < draw; i++) {
+            drawCard(game, game.turn);
+          }
+          game.turn = nextTurnClockwise(game.turn, 4);
+        }
+        sendWsUpdate(gameId, {
+          type: 'bot_play',
+          player: PLAYERS[botIdx],
+          card: playedCard,
+          chosenColor,
+          gameState: getGameState(game, gameId)
+        });
+      } else {
+        game.turn = nextTurnClockwise(game.turn, 4);
+        sendWsUpdate(gameId, {
+          type: 'bot_draw',
+          player: PLAYERS[botIdx],
+          gameState: getGameState(game, gameId)
+        });
+      }
+    }
+    if (botHand.length === 0) game.finished = true;
+  }
+}
+
+function getGameState(game, gameId) {
+  return {
+    finished: game.finished,
+    clientCards: game.hands[0],
+    pileCard: game.pile[game.pile.length-1],
+    currentColor: game.currentColor,
+    otherPlayers: [
+      { name: PLAYERS[1], count: game.hands[1].length },
+      { name: PLAYERS[2], count: game.hands[2].length },
+      { name: PLAYERS[3], count: game.hands[3].length }
+    ],
+    turn: game.turn,
+    message: game.finished ? 'Game finished!' : undefined,
+    gameId
+  };
 }
 
 // --- Endpoints ---
@@ -142,7 +247,7 @@ app.post('/start', (req, res) => {
 });
 
 // Play card
-app.post('/play', (req, res) => {
+app.post('/play', async (req, res) => {
   console.log('POST /play BODY:', req.body);
   const { gameId, card, idx, chosenColor } = req.body;
   const game = games[gameId];
@@ -188,14 +293,21 @@ app.post('/play', (req, res) => {
     if (playedCard.type === 'draw2') draw = 2;
     if (playedCard.type === 'wild4') draw = 4;
     // Siguiente turno
-    game.turn = nextTurn(game.turn, game.direction, 4);
-    if (skip) game.turn = nextTurn(game.turn, game.direction, 4);
+    game.turn = nextTurnClockwise(game.turn, 4);
+    if (skip) game.turn = nextTurnClockwise(game.turn, 4);
     if (draw > 0) {
       for (let i = 0; i < draw; i++) {
         drawCard(game, game.turn);
       }
-      game.turn = nextTurn(game.turn, game.direction, 4);
+      game.turn = nextTurnClockwise(game.turn, 4);
     }
+    sendWsUpdate(gameId, {
+      type: 'client_play',
+      player: PLAYERS[0],
+      card: playedCard,
+      chosenColor: playedCard.color === 'wild' ? game.currentColor : null,
+      gameState: getGameState(game, gameId)
+    });
   } else {
     // No tiene carta válida, roba una
     const drawn = drawCard(game, 0);
@@ -213,96 +325,60 @@ app.post('/play', (req, res) => {
       if (playedCard.type === 'reverse') game.direction *= -1;
       if (playedCard.type === 'draw2') draw = 2;
       if (playedCard.type === 'wild4') draw = 4;
-      game.turn = nextTurn(game.turn, game.direction, 4);
-      if (skip) game.turn = nextTurn(game.turn, game.direction, 4);
+      game.turn = nextTurnClockwise(game.turn, 4);
+      if (skip) game.turn = nextTurnClockwise(game.turn, 4);
       if (draw > 0) {
         for (let i = 0; i < draw; i++) {
           drawCard(game, game.turn);
         }
-        game.turn = nextTurn(game.turn, game.direction, 4);
+        game.turn = nextTurnClockwise(game.turn, 4);
       }
+      sendWsUpdate(gameId, {
+        type: 'client_draw_play',
+        player: PLAYERS[0],
+        card: playedCard,
+        chosenColor: playedCard.color === 'wild' ? game.currentColor : null,
+        gameState: getGameState(game, gameId)
+      });
     } else {
       // No puede jugar, pierde turno
-      game.turn = nextTurn(game.turn, game.direction, 4);
+      game.turn = nextTurnClockwise(game.turn, 4);
+      sendWsUpdate(gameId, {
+        type: 'client_draw',
+        player: PLAYERS[0],
+        gameState: getGameState(game, gameId)
+      });
     }
   }
 
   // Simular bots
-  while (game.turn !== 0 && !game.finished) {
-    const botIdx = game.turn;
-    const botHand = game.hands[botIdx];
-    const pileCard = game.pile[game.pile.length-1];
-    const currentColor = game.currentColor;
-    let botAction = simulateBot(game, botIdx);
-    if (botAction.play) {
-      const playedCard = botHand.splice(botAction.idx, 1)[0];
-      game.pile.push(playedCard);
-      if (playedCard.color === 'wild') {
-        const colorsInHand = botHand.filter(c => c.color !== 'wild').map(c => c.color);
-        game.currentColor = colorsInHand.length ? colorsInHand.sort((a,b) => colorsInHand.filter(x=>x===a).length - colorsInHand.filter(x=>x===b).length).pop() : 'red';
-      } else {
-        game.currentColor = playedCard.color;
-      }
-      let skip = false, draw = 0;
-      if (playedCard.type === 'skip') skip = true;
-      if (playedCard.type === 'reverse') game.direction *= -1;
-      if (playedCard.type === 'draw2') draw = 2;
-      if (playedCard.type === 'wild4') draw = 4;
-      game.turn = nextTurn(game.turn, game.direction, 4);
-      if (skip) game.turn = nextTurn(game.turn, game.direction, 4);
-      if (draw > 0) {
-        for (let i = 0; i < draw; i++) {
-          drawCard(game, game.turn);
-        }
-        game.turn = nextTurn(game.turn, game.direction, 4);
-      }
-    } else {
-      // Bot no puede jugar, roba una
-      const drawn = drawCard(game, botIdx);
-      if (isCardValid(drawn, pileCard, currentColor)) {
-        const playedCard = botHand.pop();
-        game.pile.push(playedCard);
-        if (playedCard.color === 'wild') {
-          const colorsInHand = botHand.filter(c => c.color !== 'wild').map(c => c.color);
-          game.currentColor = colorsInHand.length ? colorsInHand.sort((a,b) => colorsInHand.filter(x=>x===a).length - colorsInHand.filter(x=>x===b).length).pop() : 'red';
-        } else {
-          game.currentColor = playedCard.color;
-        }
-        let skip = false, draw = 0;
-        if (playedCard.type === 'skip') skip = true;
-        if (playedCard.type === 'reverse') game.direction *= -1;
-        if (playedCard.type === 'draw2') draw = 2;
-        if (playedCard.type === 'wild4') draw = 4;
-        game.turn = nextTurn(game.turn, game.direction, 4);
-        if (skip) game.turn = nextTurn(game.turn, game.direction, 4);
-        if (draw > 0) {
-          for (let i = 0; i < draw; i++) {
-            drawCard(game, game.turn);
-          }
-          game.turn = nextTurn(game.turn, game.direction, 4);
-        }
-      } else {
-        game.turn = nextTurn(game.turn, game.direction, 4);
-      }
-    }
-    if (botHand.length === 0) game.finished = true;
-  }
+  await simulateBotsWithDelay(game, gameId);
   if (hand.length === 0) game.finished = true;
-  res.json({
-    finished: game.finished,
-    clientCards: hand,
-    pileCard: game.pile[game.pile.length-1],
-    currentColor: game.currentColor,
-    otherPlayers: [
-      { name: PLAYERS[1], count: game.hands[1].length },
-      { name: PLAYERS[2], count: game.hands[2].length },
-      { name: PLAYERS[3], count: game.hands[3].length }
-    ],
-    turn: game.turn,
-    message: game.finished ? 'Game finished!' : undefined
+  res.json(getGameState(game, gameId));
+});
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+wss.on('connection', (ws, req) => {
+  ws.on('message', (msg) => {
+    try {
+      const data = JSON.parse(msg);
+      if (data.type === 'subscribe' && data.gameId) {
+        wsClients[data.gameId] = ws;
+        ws.send(JSON.stringify({ type: 'subscribed', gameId: data.gameId }));
+      }
+    } catch (e) {
+      ws.send(JSON.stringify({ error: 'Invalid message' }));
+    }
+  });
+  ws.on('close', () => {
+    for (const [gameId, client] of Object.entries(wsClients)) {
+      if (client === ws) delete wsClients[gameId];
+    }
   });
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`UNO server listening at http://localhost:${PORT}`);
 }); 
