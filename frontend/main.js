@@ -4,13 +4,14 @@ let ws = null;
 let lastBotAction = null;
 let currentTurnPlayer = null;
 
-const PLAYER_NAMES = ['Stephanie', 'Player 2', 'Player 3', 'Player 4'];
+const PLAYER_NAMES = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
 
 async function startGame() {
   const res = await fetch('http://localhost:3001/start', { method: 'POST' });
   const data = await res.json();
   gameId = data.gameId;
   gameState = data;
+  console.log('INICIANDO JUEGO',data)
   saveState();
   connectWebSocket();
   renderBoard(data);
@@ -24,7 +25,7 @@ function connectWebSocket() {
   };
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
-    console.log('WebSocket message:', msg);
+    console.log(`WebSocket message: ${msg.type}`, msg);
     if (msg.type === 'subscribed') return;
     if (msg.gameState) {
       gameState = msg.gameState;
@@ -56,15 +57,24 @@ function restoreState() {
 }
 
 function renderBoard(data, lastAction = null) {
+  // Resaltar el jugador activo
+  const turnIdx = data.turn;
+  const playerIds = ['player-1', 'player-2', 'player-3', 'player-4'];
+  playerIds.forEach((id, idx) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.toggle('active-player', idx === turnIdx);
+    }
+  });
   document.getElementById('player-3').innerHTML = `
     <div class="player-name">Player 3</div>
-    ${renderBackCards(data.otherPlayers[0].count)}
-    <div class="card-count">${data.otherPlayers[0].count} cards</div>
+    ${renderBackCards(data.otherPlayers[1].count)}
+    <div class="card-count">${data.otherPlayers[1].count} cards</div>
   `;
   document.getElementById('player-2').innerHTML = `
     <div class="player-name">Player 2</div>
-    ${renderBackCards(data.otherPlayers[1].count)}
-    <div class="card-count">${data.otherPlayers[1].count} cards</div>
+    ${renderBackCards(data.otherPlayers[0].count)}
+    <div class="card-count">${data.otherPlayers[0].count} cards</div>
   `;
   document.getElementById('player-4').innerHTML = `
     <div class="player-name">Player 4</div>
@@ -73,13 +83,13 @@ function renderBoard(data, lastAction = null) {
   `;
   const isMyTurn = data.turn === 0 && !data.finished;
   document.getElementById('player-1').innerHTML = `
-    <div class="player-name">Stephanie</div>
-    <div>${data.clientCards.map((c, i) => renderClickableCard(c, i, isMyTurn, data)).join('')}</div>
+    <div class="player-name">Player 1</div>
+    <div>${data.clientCards.map(c => renderClickableCard(c, isMyTurn, data)).join('')}</div>
   `;
   // Mazo clickeable solo si es tu turno y no tienes jugada válida
-  const canDraw = isMyTurn && !data.clientCards.some(c => isCardValid(c, data.pileCard, data.currentColor));
+  const canDraw = isMyTurn && !data.clientCards.some(c => isCardValid(c, data.discardPile, data.currentColor));
   document.getElementById('deck').innerHTML = `<img src="cartas/back.jpg" class="card-img" alt="deck" style="cursor:${canDraw ? 'pointer' : 'not-allowed'};" ${canDraw ? 'onclick="drawFromDeck()"' : ''}>`;
-  document.getElementById('pile').innerHTML = renderCard(data.pileCard);
+  document.getElementById('pile').innerHTML = renderCard(data.discardPile);
   showStatus(data, lastAction);
 }
 
@@ -105,32 +115,35 @@ function renderCard(card) {
   return `<img src="cartas/${name}.png" class="card-img" alt="${name}">`;
 }
 
-function renderClickableCard(card, idx, isMyTurn, data) {
-  const isValid = isMyTurn && isCardValid(card, data.pileCard, data.currentColor);
+function renderClickableCard(card, isMyTurn, data) {
+  const isValid = isMyTurn && isCardValid(card, data.discardPile, data.currentColor);
   const name = `${card.color === 'wild' ? '' : card.color}${cardValueToImage(card)}`;
-  return `<img src="cartas/${name}.png" class="card-img${isValid ? ' playable' : ''}" alt="${name}" style="cursor:${isValid ? 'pointer' : 'not-allowed'};opacity:${isValid ? 1 : 0.5}" ${isValid ? `onclick="playCard(${idx})"` : ''}>`;
+  return `<img src="cartas/${name}.png" class="card-img${isValid ? ' playable' : ''}" alt="${name}" style="cursor:${isValid ? 'pointer' : 'not-allowed'};opacity:${isValid ? 1 : 0.5}" ${isValid ? `onclick="playCard(${card.id})"` : ''}>`;
 }
 
 function renderBackCards(count) {
   let html = '';
-  for (let i = 0; i < count; i++) {
+  const maxCards = Math.min(count, 7);
+  for (let i = 0; i < maxCards; i++) {
     html += '<img src="cartas/back.jpg" class="card-img" alt="back">';
   }
   return html;
 }
 
-function isCardValid(card, pileCard, currentColor) {
+function isCardValid(card, discardPile, currentColor) {
   if (card.color === 'wild') return true;
   if (card.color === currentColor) return true;
-  if (card.type === pileCard.type && card.value === pileCard.value) return true;
-  if (card.type === 'number' && card.value === pileCard.value) return true;
-  if ('numero' in card && 'numero' in pileCard && card.numero === pileCard.numero) return true;
+  if (card.type === discardPile.type && card.value === discardPile.value) return true;
+  if (card.type === 'number' && card.value === discardPile.value) return true;
+  if ('numero' in card && 'numero' in discardPile && card.numero === discardPile.numero) return true;
   return false;
 }
 
-async function playCard(idx) {
+async function playCard(cardId) {
+  console.log(cardId,gameState)
+  const card  = gameState.clientCards.find(el=> el.id === String(cardId))
+  console.log('PLAYING CARD',card)
   if (gameState.turn !== 0 || gameState.finished) return; // Solo puedes jugar en tu turno
-  const card = gameState.clientCards[idx];
   let chosenColor = null;
   if (card.color === 'wild') {
     chosenColor = prompt('Choose a color: red, yellow, green, blue', 'red');
@@ -139,9 +152,10 @@ async function playCard(idx) {
   const res = await fetch('http://localhost:3001/play', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gameId, card, idx, chosenColor })
+    body: JSON.stringify({ gameId, card, chosenColor })
   });
   const data = await res.json();
+  console.log('ENVIANDO CARTA ----',{ gameId, card, chosenColor },)
   gameState = { ...gameState, ...data };
   saveState();
   renderBoard(gameState);
@@ -165,13 +179,13 @@ async function drawFromDeck() {
 
 function showStatus(data, lastAction = null) {
   let msg = '';
-  let turnPlayer = PLAYER_NAMES[data.turn];
+  let turnPlayer = ['Player 1', 'Player 2', 'Player 3', 'Player 4'][data.turn];
   if (data.finished) {
     msg = data.clientCards.length === 0 ? 'Congratulations, you won the game!' : 'You lost!';
-  } else {
-    msg = data.turn === 0 ? 'Your turn' : `Turn: <b>${turnPlayer}</b>`;
-    msg += ` | Current color: <span style="color:${data.currentColor}">${data.currentColor}</span>`;
-  }
+  } 
+//   else {
+//     msg = `<b>Turn:</b> <span class="active-player-name">${turnPlayer}</span>`;
+//   }
   let div = document.getElementById('game-status');
   if (!div) {
     div = document.createElement('div');
@@ -184,20 +198,13 @@ function showStatus(data, lastAction = null) {
 
 function showTurnInfo(msg) {
   let info = '';
-  if (msg.type === 'bot_play') {
-    info = `<b>${msg.player}</b> played ${renderCard(msg.card)}`;
-    if (msg.card.color === 'wild') {
-      info += ` and chose <span style=\"color:${msg.chosenColor}\">${msg.chosenColor}</span>`;
-    }
+  // Notificaciones relevantes
+  if (msg.type === 'draw_penalty') {
+    info = `<b>${msg.affectedPlayer}</b> drew ${msg.amount} card${msg.amount > 1 ? 's' : ''} as penalty.`;
   } else if (msg.type === 'bot_draw_from_deck') {
     info = `<b>${msg.player}</b> drew a card from the deck.`;
   } else if (msg.type === 'bot_draw') {
     info = `<b>${msg.player}</b> drew a card and passed.`;
-  } else if (msg.type === 'client_play') {
-    info = `<b>You played</b> ${renderCard(msg.card)}`;
-    if (msg.card.color === 'wild') {
-      info += ` and chose <span style=\"color:${msg.chosenColor}\">${msg.chosenColor}</span>`;
-    }
   } else if (msg.type === 'client_draw_from_deck') {
     info = `<b>You drew a card from the deck.</b>`;
   } else if (msg.type === 'client_draw') {
@@ -208,14 +215,24 @@ function showTurnInfo(msg) {
       info += ` and chose <span style=\"color:${msg.chosenColor}\">${msg.chosenColor}</span>`;
     }
   }
+  // Notificación de cambio de color por comodín
+  if ((msg.type === 'bot_play' || msg.type === 'client_play' || msg.type === 'client_draw_play') && msg.card && msg.card.color === 'wild' && msg.chosenColor) {
+    if (msg.type.startsWith('bot_')) {
+      info = `<b>${msg.player}</b> changed the color to <span style=\"color:${msg.chosenColor}\">${msg.chosenColor}</span>`;
+    } else {
+      info = `<b>You changed the color to <span style=\"color:${msg.chosenColor}\">${msg.chosenColor}</span></b>`;
+    }
+  }
   let div = document.getElementById('turn-info');
   if (!div) {
     div = document.createElement('div');
     div.id = 'turn-info';
-    div.style = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#fff3;padding:10px 20px;border-radius:8px;font-size:1.1em;z-index:11;min-width:200px;text-align:center;';
-    document.body.appendChild(div);
+    div.style = 'position:absolute;top:calc(50% + 80px);left:50%;transform:translateX(-50%);background:#fff3;padding:12px 24px;border-radius:10px;font-size:1.1em;z-index:30;min-width:220px;text-align:center;box-shadow:0 2px 8px #0002;';
+    const center = document.getElementById('center');
+    if (center) center.appendChild(div); else document.body.appendChild(div);
   }
   div.innerHTML = info;
+  div.style.display = info ? 'block' : 'none';
   if (msg.type && msg.type.startsWith('bot_')) {
     div.style.background = '#e3f2fd';
   } else {
@@ -236,7 +253,9 @@ if (!document.getElementById('btn-restart')) {
   const btn = document.createElement('button');
   btn.id = 'btn-restart';
   btn.textContent = 'Restart game';
-  btn.style = 'position:fixed;top:10px;right:10px;z-index:20;padding:8px 16px;font-size:1em;';
+  btn.style = 'position:fixed;top:20px;right:20px;z-index:40;padding:12px 28px;font-size:1.1em;font-weight:bold;background:#1976d2;color:#fff;border:none;border-radius:8px;box-shadow:0 2px 8px #0002;cursor:pointer;transition:background 0.2s;';
+  btn.onmouseover = () => btn.style.background = '#1565c0';
+  btn.onmouseout = () => btn.style.background = '#1976d2';
   btn.onclick = () => {
     localStorage.removeItem('uno_gameId');
     localStorage.removeItem('uno_state');
@@ -265,6 +284,14 @@ style.innerHTML = `
   transform: scale(1.1);
   box-shadow: 0 4px 12px #000a;
   z-index: 2;
+}
+.active-player .player-name, .active-player-name {
+  color: #1976d2 !important;
+  font-weight: bold;
+  text-shadow: 0 2px 8px #fff8;
+  background: #e3f2fd;
+  border-radius: 6px;
+  padding: 2px 8px;
 }
 `;
 document.head.appendChild(style); 
