@@ -167,11 +167,6 @@ function getGameState(game, gameId) {
     discardPile: game.pile[game.pile.length-1],
     currentColor: game.currentColor,
     otherPlayers: PLAYERS.map((player,i)=> {return {name: player, count: game.hands[i].length}}).filter((el,i)=> i>0),
-    // [
-    //   { name: PLAYERS[1], count: game.hands[1].length },
-    //   { name: PLAYERS[2], count: game.hands[2].length },
-    //   { name: PLAYERS[3], count: game.hands[3].length }
-    // ],
     turn: game.turn,
     direction: game.direction,
     message: game.finished ? 'Game finished!' : undefined,
@@ -312,7 +307,6 @@ app.post('/play', async (req, res) => {
   if (!card || typeof card !== 'object' || !('color' in card) || !isCardValid(card, discardPile, currentColor)) {
     return res.status(400).json({ error: 'Invalid Card' });
   }
-  console.log(isCardValid(card, discardPile, currentColor))
   // Si la jugada es válida
   if (isCardValid(card, discardPile, currentColor)) {
     // Añadimos la carta seleccionada a la zona de descarte
@@ -326,14 +320,12 @@ app.post('/play', async (req, res) => {
       game.currentColor = card.color;
     }
     // Aplica efectos especiales
+    const currentTurn = game.turn
     const { skip, draw } = applySpecialEffects(game, card);
     game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
-    const currentTurn = game.turn
-    console.log('Aqui')
-    console.log(skip, draw, currentTurn, game.turn)
     if (skip || draw > 0) game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
     if (draw > 0) {
-      applyDrawPenalty(game, gameId, draw,currentTurn);
+      applyDrawPenalty(game, gameId, draw,game.turn);
     }
     sendWsUpdate(gameId, {
       type: 'client_play',
@@ -348,11 +340,11 @@ app.post('/play', async (req, res) => {
       sendWsUpdate(gameId, {
         type: 'uno_warning',
         player: PLAYERS[0],
-        gameState: getGameState(game, gameId)
+        gameState: getGameState({...game, turn: currentTurn}, gameId)
       });
       startUnoTimer(gameId);
       // No continuar con los bots, esperar a que el cliente diga UNO
-      res.json(getGameState(game, gameId));
+      res.json(getGameState({...game, turn: currentTurn}, gameId));
       return;
     }
     // Si el cliente se queda sin cartas, termina la partida y notifica
