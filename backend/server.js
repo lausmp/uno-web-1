@@ -42,7 +42,6 @@ function applySpecialEffects(game, playedCard) {
 
 // Aplica penalización de robo de cartas y avanza turno
 function applyDrawPenalty(game, gameId, draw, currentTurn, sendUpdate = true, ) {
-  console.log(`${currentTurn} roba carta`)
   for (let i = 0; i < draw; i++) {
     drawCard(game, currentTurn);
   }
@@ -115,6 +114,7 @@ function handleRoundEnd(game, gameId, winnerIdx) {
     }
   }
   game.scores[winnerIdx] += roundScore;
+  game.finished = game.scores[winnerIdx] >= MAX_SCORE;
   sendWsUpdate(gameId, {
     type: 'round_score',
     winner: PLAYERS[winnerIdx],
@@ -124,38 +124,38 @@ function handleRoundEnd(game, gameId, winnerIdx) {
     gameState: getGameState(game, gameId)
   });
   // ¿Alguien llegó a 500?
-  if (game.scores[winnerIdx] >= MAX_SCORE) {
-    game.finished = true;
-    sendWsUpdate(gameId, {
-      type: 'game_over',
-      winner: PLAYERS[winnerIdx],
-      scores: game.scores,
-      gameState: getGameState(game, gameId)
-    });
-    // Reiniciar todo después de un pequeño delay
-    setTimeout(() => {
-      const newState = initGameState();
-      newState.scores = [0, 0, 0, 0];
-      games[gameId] = newState;
-      sendWsUpdate(gameId, {
-        type: 'new_game',
-        scores: newState.scores,
-        gameState: getGameState(newState, gameId)
-      });
-    }, 5000);
-  } else {
+  // if (game.scores[winnerIdx] >= MAX_SCORE) {
+  //   game.finished = true;
+  //   sendWsUpdate(gameId, {
+  //     type: 'game_over',
+  //     winner: PLAYERS[winnerIdx],
+  //     scores: game.scores,
+  //     gameState: getGameState(game, gameId)
+  //   });
+    // // Reiniciar todo después de un pequeño delay
+    // setTimeout(() => {
+    //   const newState = initGameState();
+    //   newState.scores = [0, 0, 0, 0];
+    //   games[gameId] = newState;
+    //   sendWsUpdate(gameId, {
+    //     type: 'new_game',
+    //     scores: newState.scores,
+    //     gameState: getGameState(newState, gameId)
+    //   });
+    // }, 5000);
+  // } else {
     // Reiniciar solo la ronda después de un pequeño delay
-    setTimeout(() => {
-      const newState = initGameState();
-      newState.scores = [...game.scores];
-      games[gameId] = newState;
-      sendWsUpdate(gameId, {
-        type: 'new_round',
-        scores: newState.scores,
-        gameState: getGameState(newState, gameId)
-      });
-    }, 4000);
-  }
+    // setTimeout(() => {
+    //   const newState = initGameState();
+    //   newState.scores = [...game.scores];
+    //   games[gameId] = newState;
+    //   sendWsUpdate(gameId, {
+    //     type: 'new_round',
+    //     scores: newState.scores,
+    //     gameState: getGameState(newState, gameId)
+    //   });
+    // }, 4000);
+  // }
 }
 
 // Devuelve el estado actual de la partida para el frontend
@@ -178,7 +178,6 @@ function getGameState(game, gameId) {
 // Simula los turnos de los bots con delays y aplica reglas
 async function simulateBotsWithDelay(game, gameId) {
   while (game.turn !== 0 && !game.finished) {
-    console.log(`SIMULANDO JUEGO DEL PLAYER ${game.turn +1}`)
     const botIdx = game.turn;
     const botHand = game.hands[botIdx];
     const discardPile = game.pile[game.pile.length-1];
@@ -323,10 +322,10 @@ app.post('/play', async (req, res) => {
     const currentTurn = game.turn
     const { skip, draw } = applySpecialEffects(game, card);
     game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
-    if (skip || draw > 0) game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
     if (draw > 0) {
       applyDrawPenalty(game, gameId, draw,game.turn);
     }
+    if (skip || draw > 0) game.turn = nextTurnWithDirection(game.turn, 4, game.direction);
     sendWsUpdate(gameId, {
       type: 'client_play',
       player: PLAYERS[0],
@@ -405,6 +404,18 @@ app.post('/uno', async (req, res) => {
   });
   await simulateBotsWithDelay(game, gameId);
   res.json({ success: true, gameState: getGameState(game, gameId) });
+});
+
+// Endpoint para iniciar una nueva ronda manteniendo los puntajes
+app.post('/new-round', (req, res) => {
+  const { gameId } = req.body;
+  const oldGame = games[gameId];
+  if (!oldGame) return res.status(400).json({ error: 'Game not found' });
+  // Crear nuevo estado de juego
+  const newGame = initGameState();
+  newGame.scores = oldGame.scores ? [...oldGame.scores] : [0,0,0,0];
+  games[gameId] = newGame;
+  res.json(getGameState(newGame, gameId));
 });
 
 // --- WebSocket Server ---
