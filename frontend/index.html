@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0" /> -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UNO Web</title>
+  <link rel="icon" href="Assets/unofavicon.ico" type="/x-icon">
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400..900&display=swap" rel="stylesheet" />
+</head>
+
+<body onclick="PlayAudio()">
+  <main>
+    <div id="welcome-screen">
+      <img src="Assets/UNO_Logo.svg.png" alt="UNO Logo" class="uno-logo">
+      <h1>Web Edition</h1>
+      <button onclick="openModalJugadores()" class="start-button">JUGAR</button>
+      <button class="rules-button" onclick="openModal()">REGLAS</button>
+    </div>
+
+    <div id="modal-jugadores" class="modal">
+      <div class="modal-content-jugadores">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2>Elige el número de jugadores:</h2>
+        <div class="select-jugadores-box"> 
+          <select id="num-jugadores" class="select-jugadores">
+            <option value="2">2 jugadores</option>
+            <option value="3">3 jugadores</option>
+            <option value="4">4 jugadores</option>
+          </select>
+          <button id="modal-jugadores-aceptar" onclick="goToGame()">Aceptar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-reglas" class="modal">
+      <div class="modal-contentrules">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2>Reglas del juego</h2>
+        <strong>¿De qué va el juego?</strong><br>
+        El objetivo del UNO es ser el primer jugador en deshacerse de todas tus cartas en cada ronda
+        y así, ganar puntos por las cartas que les queden a tus oponentes. Los puntos se acumulan
+        en cada ronda, y el primer jugador en alcanzar 500 puntos gana.<br><br>
+        <strong>Componentes del juego</strong>
+        <ul>
+          <li><strong>Mazo de cartas:</strong> Contiene 108 cartas, divididas en cuatro colores equitativamente (rojo,
+            azul, verde y amarillo).</li>
+          <li><strong>Cartas numéricas (0-9):</strong> Son las cartas básicas.</li>
+          <li><strong>Cartas especiales:</strong>
+            <ul>
+              <li>Salto: El siguiente jugador pierde su turno.</li>
+              <li>Reversa: Invierte el sentido del juego.</li>
+              <li>Roba +2: El siguiente jugador toma dos cartas del mazo.</li>
+              <li>Comodín (o “Cambio color”): Permite cambiar el color de juego.</li>
+              <li>Comodín +4: Permite cambiar el color y el siguiente jugador roba cuatro cartas.</li>
+            </ul>
+          </li>
+        </ul>
+        <strong>¿Cómo jugar?</strong>
+        <ul>
+          <li>Se reparten 7 cartas a cada jugador.</li>
+          <li>Se coloca una carta en la zona de descarte.</li>
+          <li>El jugador a la izquierda del repartidor comienza la ronda.</li>
+          <li>En su turno, el jugador debe lanzar una carta del mismo número o color que la carta en la zona de descarte
+            (incluyendo salto, reversa y +2).</li>
+          <li>Si no tiene una carta válida, debe tomar una del mazo.</li>
+          <li>Si la carta robada es jugable, puede lanzarla en la zona de descarte inmediatamente.</li>
+          <li>El jugador puede lanzar cualquier comodín en su turno.</li>
+          <li>Si un jugador queda con una sola carta, debe gritar "UNO".</li>
+          <li>Si un jugador canta antes el “UNO” en tu contra, se deben tomar 2 cartas del mazo como castigo, y el juego
+            continúa.</li>
+          <li>Una vez que un jugador se queda sin cartas, la ronda termina. Se anotan los puntos (ver PUNTUACIÓN) y el
+            juego comienza de nuevo.</li>
+          <li>Una vez que se ha sumado la puntuación de la ronda, si ningún jugador ha alcanzado los 500 puntos, se
+            barajan las cartas y comienza una nueva ronda.</li>
+        </ul>
+        <strong>Puntuación:</strong>
+        <ul>
+          <li>Todas las cartas numéricas (0-9): Valor nominal</li>
+          <li>Roba Dos (+2): 20 puntos</li>
+          <li>Reversa: 20 puntos</li>
+          <li>Salto: 20 puntos</li>
+          <li>Comodín (cambio de color): 50 puntos</li>
+          <li>Comodín +4: 50 puntos</li>
+        </ul>
+      </div>
+    </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    © 2025 UNO Web. Todos los derechos reservados a Patricia Docasar, Laura Martinez y Violeta Semprum. Grupo 4.
+  </footer>
+
+  <audio id="audio-bg" controls loop autoplay hidden>
+    <source src="Assets/Sounds/game-bg-music.mp3" type="audio/mpeg">
+  </audio>
+
+  <script src="script.js"></script>
+
+</body>
+
+</html>

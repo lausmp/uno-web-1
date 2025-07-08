@@ -1,0 +1,462 @@
+body,
+html {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#welcome-screen {
+  position:fixed;
+  transform: scale(0.67);
+  transform-origin: top left;
+  width: 150vw;  
+  height: 150vh;
+  background-image: url("Assets/Fondo.png");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#upbar{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width:95%;
+  padding: 15px 100px;
+  position: sticky;
+
+}
+
+#game-container {
+  flex:1;
+  position:fixed;
+  transform: scale(0.67);
+  transform-origin: top left;
+  width: 150vw;  
+  height: 150vh;
+  background-image: url("Assets/FondoJuego.png");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+h1 {
+  color: blanchedalmond;
+  font-size: 110px;
+  text-align: center;
+  margin-top: 50px;
+  font-family: "Cinzel", sans-serif;
+  text-shadow: 2px 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+.uno-logo {
+  display: block;
+  margin: 0 auto 40px;
+  width: 340px;
+  max-width: 80vw;
+  height: auto;
+  margin-top: 30px;
+}
+
+.start-button {
+  background: linear-gradient(90deg, #c92020 0%, #deab06 100%);
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: bold;
+  padding: 16px 48px;
+  border: none;
+  border-radius: 30px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  margin-top: 20px;
+  letter-spacing: 1px;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.3s;
+  align-items: center;
+  font-size: 2rem;
+  padding: 24px 64px;
+  min-width: 300px;
+  border-radius: 40px;
+  margin-bottom: 24px;
+}
+
+.rules-button {
+  background: linear-gradient(90deg, #c92020 0%, #deab06 100%);
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: bold;
+  padding: 16px 48px;
+  border: none;
+  border-radius: 30px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  margin-top: 20px;
+  letter-spacing: 1px;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.3s;
+  align-items: center;
+  font-size: 2rem;
+  padding: 24px 64px;
+  min-width: 300px;
+  border-radius: 40px;
+}
+
+.uno-button {
+  position: fixed;
+  right: 300px;
+  bottom: 80px;
+  width: 200px;
+  height: 100px;
+  border-radius: 20px;
+  background: linear-gradient(90deg, #c92020 0%, #deab06 100%);
+  color: #fff;
+  border: none;
+  font-size: 2rem;
+  font-weight: bold;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.start-button:hover,
+.rules-button:hover,
+.uno-button:hover,
+#modal-alert-OK:hover,
+#modal-alert-EXIT:hover,
+#modal-jugadores-aceptar:hover {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  background: linear-gradient(90deg, #deab06 0%, #c92020 100%);
+}
+
+.footer {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  text-align: center;
+  padding: 16px 0;
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  font-size: 1rem;
+  letter-spacing: 1px;
+  z-index: 100;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 200;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+h2 {
+  color: #c92020;
+  font-size: 2.5rem;
+  margin-bottom: 16px;
+  font-family: "Cinzel", sans-serif;
+  text-align: center;
+}
+
+.modal-contentrules {
+  transform: scale(0.67);
+  transform-origin: top;
+  background: #fff;
+  margin: 10% auto;
+  padding: 60px 50px;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  position: relative;
+  text-align: center;
+  font-size: 1.3rem;
+}
+
+.close {
+  position: absolute;
+  top: 12px;
+  right: 18px;
+  font-size: 2rem;
+  color: #c92020;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.modal-contentrules p,
+.modal-contentrules div,
+.modal-contentrules {
+  text-align: justify;
+}
+
+.card-img {
+  width: 70px;
+  height: auto;
+  margin: 4px;
+  vertical-align: middle;
+}
+
+#players-area {
+  /*margin: auto;*/
+  display: grid;
+  grid-template-columns: repeat(4, 400px);
+  grid-template-rows: repeat(3, 220px);
+  gap: 30px;
+  padding: 15px;
+  justify-content: center;
+  align-items: center;
+  min-height: 600px;
+  overflow: visible; 
+}
+
+.player{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#player1 {
+  grid-column: span 2 / span 2;
+  grid-row-start: 3;
+  grid-column-start: 2;
+}
+
+#player1 .card-img:hover {
+  cursor: pointer;
+  transform: scale(1.1);
+  transition: transform 0.2s;
+}
+
+.nameofPlayer{
+  color: #ffb700;
+  text-align: left;
+  width:70%;
+  display: block;
+}
+
+.hand{
+  display:flex;
+  flex-wrap: wrap;
+  max-width: 700px;
+  align-content: center;
+  justify-content:center;
+}
+
+#player2 {
+  grid-column-start: 1;
+  grid-row: 2;
+  justify-content: center;
+  transform: rotate(90deg);
+}
+
+#player3 {
+  justify-content: center;
+  grid-column: span 2 / span 2;
+  grid-row-start: 1;
+  grid-column-start: 2;
+  transform: rotate(180deg);
+}
+
+#player4 {
+  grid-column-start: 4;
+  grid-row: 2;
+  justify-content: center;
+  transform: rotate(270deg);
+}
+
+.uno-logo-juego {
+  width: 150px;
+  height: auto;
+}
+
+.volver-button {
+  width: 80px;
+}
+
+.volver-button:hover {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+#center-area {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  grid-column: span 2 / span 2;
+  grid-row-start: 2;
+  grid-column-start: 2;
+  padding: 20px;
+}
+
+#deck,
+#discard-pile {
+  position: relative;
+  width: 80px;
+  height: 120px;
+  margin: 4px;
+}
+
+.deck-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  cursor: pointer;
+}
+
+.deck-card:hover {
+  transform: scale(1.1);
+  transition: transform 0.2s;
+}
+
+.active-card {
+  box-shadow: 0 0 16px 4px #ffe066, 0 0 4px 2px #ffb700;
+  border: 1px solid #ffe066;
+  transition: box-shadow 0.2s, border 0.2s;
+}
+
+/*Cositos para el modal de cambio de color*/
+.modal {
+  display: none; 
+  position: fixed; 
+  /*z-index: 10;*/
+  left: 0;
+  top: 0;
+  width: 100%; 
+  height: 100%; 
+  overflow: auto; 
+  background-color: rgba(0, 0, 0, 0.7); 
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: #fefefe;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 80%; 
+  max-width: 400px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.color-options {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 20px;
+}
+
+.color-button {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 3px solid #333;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.color-button:hover {
+  transform: scale(1.1);
+}
+
+/* Colores de los botones */
+.color-button.red {
+  background-color: red;
+}
+.color-button.green {
+  background-color: green;
+}
+.color-button.blue {
+  background-color: blue;
+}
+.color-button.yellow {
+  background-color: yellow;
+}
+
+/* Modal Alertas */
+.modal-content-alert{
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  margin: 10% auto;
+  padding: 60px 50px;
+  border-radius: 16px;
+  width: 130%;
+  max-width: 170px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  position: relative;
+  text-align: center;
+  font-size: 1.3rem;
+  gap: 1px;
+}
+
+#modal-alert-OK,#modal-alert-EXIT,
+#modal-jugadores-aceptar {
+  background: linear-gradient(90deg, #c92020 0%, #deab06 100%);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: bold;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 40px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  margin-top: 28px;
+  letter-spacing: 1.5px;
+  transition: transform 0.18s, box-shadow 0.18s, background 0.3s;
+  outline: none;
+  display: inline-block;
+}
+
+/* Modal Jugadores */
+
+.modal-content-jugadores{
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  margin: 10% auto;
+  padding: 60px 50px;
+  border-radius: 16px;
+  width: 130%;
+  max-width: 300px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  position: relative;
+  text-align: center;
+}
+
+/* Select del Modal Jugadores */
+
+.select-jugadores-box{
+  position: relative;
+  width: 200px;
+  margin: 0 auto 18px auto;
+}
+
+.select-jugadores{
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  appearance: none;
+  background-size: 12px;
+}
+
+#num-jugadores {
+  background-color: #f9f9f9;
+  border-color: #c92020;
+}
+
+#num-jugadores:hover {
+  border-color: #deab06;
+}

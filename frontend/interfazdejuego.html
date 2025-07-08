@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0" /> -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UNO Web</title>
+  <link rel="icon" href="Assets/unofavicon.ico" type="/x-icon">
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400..900&display=swap" rel="stylesheet" />
+</head>
+
+<body onload="startGame()" onclick="PlayAudio()">
+  <main>
+    <div id="game-container">
+    <div id=upbar>
+      <img src="Assets/UNO_Logo.svg.png" alt="UNO Logo" class="uno-logo-juego" />
+      <img src="Assets/volver.png" alt="Volver al inicio" class="volver-button"
+      onclick="window.location.href='index.html'" />
+    </div>
+      <div id="players-area"></div>
+      <button class="uno-button">¡UNO!</button>
+    </div>
+
+    <div id="color-choice-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>Elige un color</h2>
+        <div class="color-options">
+          <button class="color-button red" data-color="red"></button>
+          <button class="color-button green" data-color="green"></button>
+          <button class="color-button blue" data-color="blue"></button>
+          <button class="color-button yellow" data-color="yellow"></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-alert" class="modal">
+      <div class="modal-content-alert">
+        <span id="modal-alert-message"></span>
+        <button id="modal-alert-OK">OK </button>
+        <button id="modal-alert-EXIT" style="display:none;">Salir</button>
+      </div>
+    </div>
+  </main>
+
+
+  <audio id="audio-bg" controls loop autoplay hidden>
+    <source src="Assets/Sounds/game-bg-music.mp3" type="audio/mpeg">
+  </audio>
+
+  <audio id="plus-sound" src="Assets/Sounds/draw2-sound.mp3"></audio>
+  <audio id="UNO-sound" src="Assets/Sounds/uno-sound.mp3"></audio>
+  <audio id="skip-reverse-sound" src="Assets/Sounds/skip-reverse-sound.mp3"></audio>
+  <audio id="change-color-sound" src="Assets/Sounds/change-color-sound.mp3"></audio>
+  <audio id="win-sound" src="Assets/Sounds/win-sound.mp3"></audio>
+  <audio id="error-sound" src="Assets/Sounds/error-sound.mp3"></audio>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
