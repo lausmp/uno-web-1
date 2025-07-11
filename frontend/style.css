@@ -10,10 +10,10 @@ html {
 }
 
 #welcome-screen {
-  position:fixed;
+  position: fixed;
   transform: scale(0.67);
   transform-origin: top left;
-  width: 150vw;  
+  width: 150vw;
   height: 150vh;
   background-image: url("Assets/Fondo.png");
   background-size: cover;
@@ -25,22 +25,21 @@ html {
   align-items: center;
 }
 
-#upbar{
+#upbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width:95%;
+  width: 95%;
   padding: 15px 100px;
   position: sticky;
-
 }
 
 #game-container {
-  flex:1;
-  position:fixed;
+  flex: 1;
+  position: fixed;
   transform: scale(0.67);
   transform-origin: top left;
-  width: 150vw;  
+  width: 150vw;
   height: 150vh;
   background-image: url("Assets/FondoJuego.png");
   background-size: cover;
@@ -218,10 +217,10 @@ h2 {
   justify-content: center;
   align-items: center;
   min-height: 600px;
-  overflow: visible; 
+  overflow: visible;
 }
 
-.player{
+.player {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -239,19 +238,19 @@ h2 {
   transition: transform 0.2s;
 }
 
-.nameofPlayer{
+.nameofPlayer {
   color: #ffb700;
   text-align: left;
-  width:70%;
+  width: 70%;
   display: block;
 }
 
-.hand{
-  display:flex;
+.hand {
+  display: flex;
   flex-wrap: wrap;
   max-width: 700px;
   align-content: center;
-  justify-content:center;
+  justify-content: center;
 }
 
 #player2 {
@@ -328,15 +327,15 @@ h2 {
 
 /*Cositos para el modal de cambio de color*/
 .modal {
-  display: none; 
-  position: fixed; 
+  display: none;
+  position: fixed;
   /*z-index: 10;*/
   left: 0;
   top: 0;
-  width: 100%; 
-  height: 100%; 
-  overflow: auto; 
-  background-color: rgba(0, 0, 0, 0.7); 
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.7);
   justify-content: center;
   align-items: center;
 }
@@ -345,7 +344,7 @@ h2 {
   background-color: #fefefe;
   padding: 20px;
   border: 1px solid #888;
-  width: 80%; 
+  width: 80%;
   max-width: 400px;
   border-radius: 10px;
   text-align: center;
@@ -385,7 +384,7 @@ h2 {
 }
 
 /* Modal Alertas */
-.modal-content-alert{
+.modal-content-alert {
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -401,7 +400,8 @@ h2 {
   gap: 1px;
 }
 
-#modal-alert-OK,#modal-alert-EXIT,
+#modal-alert-OK,
+#modal-alert-EXIT,
 #modal-jugadores-aceptar {
   background: linear-gradient(90deg, #c92020 0%, #deab06 100%);
   color: #fff;
@@ -421,7 +421,7 @@ h2 {
 
 /* Modal Jugadores */
 
-.modal-content-jugadores{
+.modal-content-jugadores {
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -437,13 +437,13 @@ h2 {
 
 /* Select del Modal Jugadores */
 
-.select-jugadores-box{
+.select-jugadores-box {
   position: relative;
   width: 200px;
   margin: 0 auto 18px auto;
 }
 
-.select-jugadores{
+.select-jugadores {
   width: 100%;
   padding: 10px;
   border: 1px solid #ccc;
