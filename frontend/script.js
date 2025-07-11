@@ -35,9 +35,19 @@ function connectWebSocket() {
   };
 }
 
+let lastDiscardId = null; // Pon esto al inicio del archivo, fuera de cualquier función
+
+//INCLUYE MUSICA PARA LOS BOTS
 function updateGameState(state) {
   clientCards = state.clientCards;
   currentColor = state.currentColor;
+  if (
+    state.discardPile &&
+    (!lastDiscardId || state.discardPile.id !== lastDiscardId)
+  ) {
+    playSpecialSound(state.discardPile);
+    lastDiscardId = state.discardPile.id;
+  }
   discardPile = state.discardPile;
   otherPlayers = state.otherPlayers;
   turn = state.turn;
@@ -117,7 +127,32 @@ function showCards() {
   }
 }
 
+//Agregue esta validacion para poder poner la musica del error
+function isCardValidFrontend(card, discardPile, currentColor) {
+  if (!card) return false;
+  if (card.type === "wild" || card.type === "wild4") return true;
+  if (card.color === currentColor) return true;
+  if (card.type === "number" && discardPile.type === "number" && card.value === discardPile.value) return true;
+  if (
+    ["skip", "reverse", "draw2"].includes(card.type) &&
+    card.type === discardPile.type
+  ) return true;
+  if (
+    ["skip", "reverse", "draw2"].includes(card.type) &&
+    ["skip", "reverse", "draw2"].includes(discardPile.type) &&
+    card.type !== discardPile.type &&
+    card.color === discardPile.color
+  ) return true;
+  return false;
+}
+
 async function playCard(card) {
+  if (!isCardValidFrontend(card, discardPile, currentColor)) {
+    playErrorSound();
+    showModalAlert("¡No puedes jugar esa carta!");
+    return;
+  }
+  playSpecialSound(card);
   if (card.value === "wild" || card.value === "wild4") {
     const chosenColor = await chooseColor();
     showModalAlert(`Elegiste el color ${chosenColor.toUpperCase()}`, async () => {
@@ -149,6 +184,7 @@ async function drawCard() {
 }
 
 async function sayUNO() {
+  playUnoSound();
   const res = await fetch("http://localhost:3001/uno", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -246,14 +282,6 @@ function PlayAudio() {
   document.getElementById("audio-bg").play();
 }
 
-function playUnoSound() {
-  const audio = document.getElementById("UNO-sound");
-  if (audio) {
-    audio.currentTime = 0;
-    audio.play();
-  }
-}
-
 function playPlusSound() {
   const audio = document.getElementById("plus-sound");
   if (audio) {
@@ -261,7 +289,13 @@ function playPlusSound() {
     audio.play();
   }
 }
-
+function playUnoSound() {
+  const audio = document.getElementById("UNO-sound");
+  if (audio) {
+    audio.currentTime = 0;
+    audio.play();
+  }
+}
 function playSkipReverseSound() {
   const audio = document.getElementById("skip-reverse-sound");
   if (audio) {
@@ -269,15 +303,6 @@ function playSkipReverseSound() {
     audio.play();
   }
 }
-
-function playReverseSound() {
-  const audio = document.getElementById("reverse-sound");
-  if (audio) {
-    audio.currentTime = 0;
-    audio.play();
-  }
-}
-
 function playChangeColorSound() {
   const audio = document.getElementById("change-color-sound");
   if (audio) {
@@ -285,7 +310,6 @@ function playChangeColorSound() {
     audio.play();
   }
 }
-
 function playWinSound() {
   const audio = document.getElementById("win-sound");
   if (audio) {
@@ -293,13 +317,17 @@ function playWinSound() {
     audio.play();
   }
 }
-
 function playErrorSound() {
   const audio = document.getElementById("error-sound");
   if (audio) {
     audio.currentTime = 0;
     audio.play();
   }
+}
+function playSpecialSound(card) {
+  if (card.type === "draw2" || card.type === "wild4") playPlusSound();
+  else if (card.type === "reverse" || card.type === "skip" || card.type === "skip") playSkipReverseSound();
+  else if (card.type === "wild") playChangeColorSound();
 }
 
 window.onload = function () {
