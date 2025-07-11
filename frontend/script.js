@@ -239,13 +239,13 @@ window.onclick = function (event) {
   }
 };
 
-function openModalJugadores() {
-  document.getElementById("modal-jugadores").style.display = "flex";
-}
+// function openModalJugadores() {
+//   document.getElementById("modal-jugadores").style.display = "flex";
+// }
 
 function goToGame() {
-  const num = document.getElementById("num-jugadores").value;
-  localStorage.setItem("numJugadores", num);
+  // const num = document.getElementById("num-jugadores").value;
+  // localStorage.setItem("numJugadores", num);
   window.location.href = "interfazdejuego.html";
 }
 
