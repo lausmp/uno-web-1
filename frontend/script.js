@@ -77,7 +77,7 @@ function showCardsBackend() {
   otherPlayers.forEach((p, idx) => {
     html += `<div id="player${idx + 2}" class="player"><h3>Jugador ${
       idx + 2
-    }</h3><div class="hand">${"🂠 ".repeat(p.cards)}</div></div>`;
+    }</h3><div class="hand">${"<img src='Assets/backcard.png' class='card-img'>".repeat(p.count)}</div></div>`;
   });
   html += `<div id="center-area">
     <div id="discard-pile"></div>
@@ -112,7 +112,7 @@ function showCardsBackend() {
   discardPileArea.innerHTML = "";
   if (discardPile) {
     const img = document.createElement("img");
-    img.src = `Assets/${discardPile.id || discardPile.value || "backcard"}.png`;
+    img.src = getCardImage(discardPile);
     img.className = "card-img discard-card";
     discardPileArea.appendChild(img);
   }
