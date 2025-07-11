@@ -71,7 +71,20 @@ function webSocketMsg(msg) {
       if (msg.gameState && msg.gameState.finished) {
         msgText += ". ¡El juego ha terminado!";
       }
-      showNotification(msgText);
+      // showNotification(msgText);
+      const okBtn = document.getElementById("modal-alert-OK");
+      okBtn.textContent = "Volver a jugar";
+      showModalAlert(
+        msgText,
+        () => {
+          okBtn.textContent = "OK";
+          newRound();
+        },
+        true,
+        () => {
+          window.location.href = "index.html";
+        }
+      );
       break;
   }
   if (msg.gameState) updateGameState(msg.gameState);
@@ -135,11 +148,24 @@ function updateGameState(state) {
   scores = state.scores;
   waitingForColor = state.waitingForColor || false;
   showCards();
+  renderScoreTable(state.scores);
 
   lastColor = state.currentColor;
   lastTurn = state.turn;
   lastDiscard = state.discardPile;
   //aaaa
+}
+
+function renderScoreTable(scores) {
+  if (!scores || !Array.isArray(scores)) return;
+  let html =
+    "<table class='score-table'><tr><th>Jugador</th><th>Puntos</th></tr>";
+  scores.forEach((score, idx) => {
+    html += `<tr><td>Jugador ${idx + 1}</td><td>${score}</td></tr>`;
+  });
+  html += "</table>";
+  const scoreTableDiv = document.getElementById("score-table");
+  if (scoreTableDiv) scoreTableDiv.innerHTML = html;
 }
 
 function getCardImage(card) {
@@ -269,13 +295,14 @@ function isCardValidFrontend(card, discardPile, currentColor) {
 }
 
 async function playCard(card) {
+  console.log("Intentando jugar:", card);
   if (!isCardValidFrontend(card, discardPile, currentColor)) {
     playErrorSound();
     showModalAlert("¡No puedes jugar esa carta!");
     return;
   }
   playSpecialSound(card);
-  if (card.value === "wild" || card.value === "wild4") {
+  if (card.type === "wild" || card.type === "wild4") {
     const chosenColor = await chooseColor();
     showModalAlert(
       `Elegiste el color ${chosenColor.toUpperCase()}`,
@@ -346,6 +373,7 @@ function chooseColor() {
 }
 
 document.querySelector(".uno-button").addEventListener("click", sayUNO);
+document.querySelector(".restart-button").addEventListener("click", newRound);
 
 function showModalAlert(
   message,
