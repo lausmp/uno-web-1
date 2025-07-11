@@ -35,29 +35,16 @@ function connectWebSocket() {
   };
 }
 
-<<<<<<< Updated upstream
-let lastDiscardId = null; // Pon esto al inicio del archivo, fuera de cualquier función
-
-//INCLUYE MUSICA PARA LOS BOTS
-=======
 let lastColor = null;
 let lastTurn = null;
 let lastDiscard = null;
 
->>>>>>> Stashed changes
 function updateGameState(state) {
-  if(lastColor !== null && state.currentColor !== lastColor && (state.discardPile.value === "wild" || state.discardPile.value === "wild4") && lastTurn !== 0) {
+  if (lastColor !== null && state.currentColor !== lastColor && (state.discardPile.value === "wild" || state.discardPile.value === "wild4") && lastTurn !== 0) {
     showModalAlert(`El color ha cambiado a ${state.currentColor.toUpperCase()}`);
   }
   clientCards = state.clientCards;
   currentColor = state.currentColor;
-  if (
-    state.discardPile &&
-    (!lastDiscardId || state.discardPile.id !== lastDiscardId)
-  ) {
-    playSpecialSound(state.discardPile);
-    lastDiscardId = state.discardPile.id;
-  }
   discardPile = state.discardPile;
   otherPlayers = state.otherPlayers;
   turn = state.turn;
@@ -68,7 +55,7 @@ function updateGameState(state) {
 
   lastColor = state.currentColor;
   lastTurn = state.turn;
-  lastDiscard = state.discardPile
+  lastDiscard = state.discardPile;
 }
 
 function getCardImage(card) {
@@ -93,11 +80,10 @@ function showCards() {
   let html = `<div id="player1" class="player"><h3>Tú</h3></div>`;
   // Otros jugadores
   otherPlayers.forEach((p, idx) => {
-    html += `<div id="player${idx + 2}" class="player"><h3>Jugador ${
-      idx + 2
-    }</h3><div class="hand">${"<img src='Assets/backcard.png' class='card-img'>".repeat(
-      p.count
-    )}</div></div>`;
+    html += `<div id="player${idx + 2}" class="player"><h3>Jugador ${idx + 2
+      }</h3><div class="hand">${"<img src='Assets/backcard.png' class='card-img'>".repeat(
+        p.count
+      )}</div></div>`;
   });
 
   html += `<div id="center-area">
