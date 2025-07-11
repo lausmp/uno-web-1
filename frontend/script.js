@@ -31,17 +31,17 @@ function connectWebSocket() {
   };
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
-    handleWebSocketEvent(msg);
+    webSocketMsg(msg);
   };
 }
 
-function handleWebSocketEvent(msg) {
+function webSocketMsg(msg) {
   switch (msg.type) {
     case "client_play":
-      showNotification(`${msg.player} jugó una carta`);
+      showNotification(`${msg.player} jugó ${getCardName(msg.card)}`);
       break;
     case "bot_play":
-      showNotification(`${msg.player} (bot) jugó una carta`);
+      showNotification(`${msg.player} (bot) jugó ${getCardName(msg.card)}`);
       break;
     case "client_draw_from_deck":
       showNotification(`${msg.player} robó una carta`);
@@ -75,6 +75,29 @@ function handleWebSocketEvent(msg) {
       break;
   }
   if (msg.gameState) updateGameState(msg.gameState);
+}
+
+function getCardName(card) {
+  if (!card) return "carta desconocida";
+  let color = card.color
+    ? card.color.charAt(0).toUpperCase() + card.color.slice(1)
+    : "";
+  switch (card.type) {
+    case "number":
+      return `${color} ${card.value}`;
+    case "skip":
+      return `${color} Salta`;
+    case "reverse":
+      return `${color} Reversa`;
+    case "draw2":
+      return `${color} +2`;
+    case "wild":
+      return `Comodín`;
+    case "wild4":
+      return `Comodín +4`;
+    default:
+      return "carta desconocida";
+  }
 }
 
 function showNotification(msg) {
@@ -173,6 +196,17 @@ function showCards() {
   });
   playerDiv.appendChild(handDiv);
 
+  const unoBtn = document.querySelector(".uno-button");
+  if (unoBtn) {
+    if (clientCards.length === 1 && turn === 0) {
+      unoBtn.disabled = false;
+      unoBtn.classList.remove("disabled");
+    } else {
+      unoBtn.disabled = true;
+      unoBtn.classList.add("disabled");
+    }
+  }
+
   // Renderiza mazo
   const deckArea = document.getElementById("deck");
   const discardPileArea = document.getElementById("discard-pile");
@@ -180,7 +214,23 @@ function showCards() {
   const deckImg = document.createElement("img");
   deckImg.src = "Assets/backcard.png";
   deckImg.className = "card-img deck-card";
-  if (turn === 0) deckImg.onclick = () => drawCard();
+
+  let canDraw = false;
+  if (turn === 0) {
+    const hasValidCard = clientCards.some((card) =>
+      isCardValidFrontend(card, discardPile, currentColor)
+    );
+    if (!hasValidCard) {
+      canDraw = true;
+    }
+  }
+  if (canDraw) {
+    deckImg.onclick = () => drawCard();
+    deckImg.classList.add("active-card");
+  } else {
+    deckImg.onclick = null;
+    deckImg.classList.remove("active-card");
+  }
   deckArea.appendChild(deckImg);
 
   // Renderiza pila de descarte
@@ -193,7 +243,6 @@ function showCards() {
   }
 }
 
-//Agregue esta validacion para poder poner la musica del error
 function isCardValidFrontend(card, discardPile, currentColor) {
   if (!card) return false;
   if (card.type === "wild" || card.type === "wild4") return true;
@@ -268,7 +317,7 @@ async function sayUNO() {
   });
   const data = await res.json();
   updateGameState(data.gameState);
-  showModalAlert("¡Has dicho UNO!");
+  // showModalAlert("¡Has dicho UNO!");
 }
 
 async function newRound() {
