@@ -48,7 +48,6 @@ html {
   display: flex;
   flex-direction: column;
   align-items: center;
-  position: relative;
 }
 
 h1 {
@@ -291,24 +290,21 @@ h2 {
 }
 
 #center-area {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 40px;
-  z-index: 10;
+  grid-column: span 2 / span 2;
+  grid-row-start: 2;
+  grid-column-start: 2;
+  padding: 20px;
 }
 
 #deck,
 #discard-pile {
+  position: relative;
   width: 80px;
   height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  margin: 4px;
 }
 
 .deck-card {
