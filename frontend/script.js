@@ -9,7 +9,6 @@ let direction = 1;
 let scores = [];
 let waitingForColor = false;
 
-// Elementos de la UI
 let playersArea = document.getElementById("players-area");
 let gameContainer = document.getElementById("game-container");
 let deckArea = document.getElementById("deck");
@@ -17,8 +16,7 @@ let discardPileArea = document.getElementById("discard-pile");
 let welcomeScreen = document.getElementById("welcome-screen");
 let colorChoiceModal = document.getElementById("color-choice-modal");
 
-// Iniciar partida con backend
-async function startGameBackend(numJugadores = 4) {
+async function startGame(numJugadores = 4) {
   const res = await fetch("http://localhost:3001/start", { method: "POST" });
   const data = await res.json();
   gameId = data.gameId;
@@ -26,7 +24,6 @@ async function startGameBackend(numJugadores = 4) {
   connectWebSocket();
 }
 
-// Conectar WebSocket para actualizaciones en tiempo real
 function connectWebSocket() {
   ws = new WebSocket("ws://localhost:3001");
   ws.onopen = () => {
@@ -38,7 +35,6 @@ function connectWebSocket() {
   };
 }
 
-// Actualizar estado del juego y UI
 function updateGameState(state) {
   clientCards = state.clientCards;
   currentColor = state.currentColor;
@@ -65,11 +61,9 @@ function getCardImage(card) {
   if (card.type === "wild" || card.type === "wild4") {
     return `Assets/${card.value}.png`;
   }
-  // return 'Assets/backcard.png'; // Imagen por defecto si no encuentra
 }
 
-// Mostrar cartas y estado en la UI
-function showCardsBackend() {
+function showCards() {
   playersArea.innerHTML = "";
   // Jugador humano
   let html = `<div id="player1" class="player"><h3>Tú</h3></div>`;
@@ -77,7 +71,9 @@ function showCardsBackend() {
   otherPlayers.forEach((p, idx) => {
     html += `<div id="player${idx + 2}" class="player"><h3>Jugador ${
       idx + 2
-    }</h3><div class="hand">${"<img src='Assets/backcard.png' class='card-img'>".repeat(p.count)}</div></div>`;
+    }</h3><div class="hand">${"<img src='Assets/backcard.png' class='card-img'>".repeat(
+      p.count
+    )}</div></div>`;
   });
   html += `<div id="center-area">
     <div id="discard-pile"></div>
@@ -85,7 +81,7 @@ function showCardsBackend() {
   </div>`;
   playersArea.innerHTML = html;
 
-  // Renderiza tu mano
+  // Renderiza mano jugador 1
   const playerDiv = document.getElementById("player1");
   const handDiv = document.createElement("div");
   handDiv.className = "hand";
@@ -95,7 +91,7 @@ function showCardsBackend() {
     img.src = cardImage;
     img.className = "card-img";
     if (turn === 0) img.classList.add("active-card");
-    img.onclick = () => playCardBackend(card);
+    img.onclick = () => playCard(card);
     handDiv.appendChild(img);
   });
   playerDiv.appendChild(handDiv);
@@ -105,7 +101,7 @@ function showCardsBackend() {
   const deckImg = document.createElement("img");
   deckImg.src = "Assets/backcard.png";
   deckImg.className = "card-img deck-card";
-  if (turn === 0) deckImg.onclick = () => drawCardBackend();
+  if (turn === 0) deckImg.onclick = () => drawCard();
   deckArea.appendChild(deckImg);
 
   // Renderiza pila de descarte
@@ -118,8 +114,7 @@ function showCardsBackend() {
   }
 }
 
-// Jugar una carta
-async function playCardBackend(card) {
+async function playCard(card) {
   if (card.value === "changeColor" || card.value === "draw4") {
     const chosenColor = await chooseColor();
     await sendPlay(card, chosenColor);
@@ -139,7 +134,7 @@ async function sendPlay(card, chosenColor) {
 }
 
 // Robar carta
-async function drawCardBackend() {
+async function drawCard() {
   const res = await fetch("http://localhost:3001/draw", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -150,7 +145,7 @@ async function drawCardBackend() {
 }
 
 // Decir UNO
-async function sayUnoBackend() {
+async function sayUNO() {
   const res = await fetch("http://localhost:3001/uno", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -188,7 +183,7 @@ function chooseColor() {
 }
 
 // Botón UNO
-document.querySelector(".uno-button").addEventListener("click", sayUnoBackend);
+document.querySelector(".uno-button").addEventListener("click", sayUNO);
 
 // --- MODALES Y UTILIDADES ---
 function showModalAlert(
@@ -310,10 +305,8 @@ function playErrorSound() {
   }
 }
 
-// --- INICIO AUTOMÁTICO ---
 window.onload = function () {
   if (document.getElementById("players-area")) {
-    const numJugadores = parseInt(localStorage.getItem("numJugadores") || "2");
-    startGameBackend(numJugadores);
+    startGame();
   }
 };
