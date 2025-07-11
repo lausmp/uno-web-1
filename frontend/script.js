@@ -35,10 +35,20 @@ function connectWebSocket() {
   };
 }
 
+<<<<<<< Updated upstream
 let lastDiscardId = null; // Pon esto al inicio del archivo, fuera de cualquier función
 
 //INCLUYE MUSICA PARA LOS BOTS
+=======
+let lastColor = null;
+let lastTurn = null;
+let lastDiscard = null;
+
+>>>>>>> Stashed changes
 function updateGameState(state) {
+  if(lastColor !== null && state.currentColor !== lastColor && (state.discardPile.value === "wild" || state.discardPile.value === "wild4") && lastTurn !== 0) {
+    showModalAlert(`El color ha cambiado a ${state.currentColor.toUpperCase()}`);
+  }
   clientCards = state.clientCards;
   currentColor = state.currentColor;
   if (
@@ -55,6 +65,10 @@ function updateGameState(state) {
   scores = state.scores;
   waitingForColor = state.waitingForColor || false;
   showCards();
+
+  lastColor = state.currentColor;
+  lastTurn = state.turn;
+  lastDiscard = state.discardPile
 }
 
 function getCardImage(card) {
@@ -156,7 +170,7 @@ async function playCard(card) {
   if (card.value === "wild" || card.value === "wild4") {
     const chosenColor = await chooseColor();
     showModalAlert(`Elegiste el color ${chosenColor.toUpperCase()}`, async () => {
-    await sendPlay(card, chosenColor);
+      await sendPlay(card, chosenColor);
     });
   } else {
     await sendPlay(card, null);
@@ -192,6 +206,7 @@ async function sayUNO() {
   });
   const data = await res.json();
   updateGameState(data.gameState);
+  showModalAlert("¡Has dicho UNO!");
 }
 
 async function newRound() {
