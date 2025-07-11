@@ -44,7 +44,7 @@ function updateGameState(state) {
   direction = state.direction;
   scores = state.scores;
   waitingForColor = state.waitingForColor || false;
-  showCardsBackend();
+  showCards();
 }
 
 function getCardImage(card) {
@@ -81,7 +81,7 @@ function showCards() {
   </div>`;
   playersArea.innerHTML = html;
 
-  // Renderiza mano jugador 1
+  // Renderiza mano jugador humano
   const playerDiv = document.getElementById("player1");
   const handDiv = document.createElement("div");
   handDiv.className = "hand";
@@ -133,7 +133,6 @@ async function sendPlay(card, chosenColor) {
   updateGameState(data.gameState);
 }
 
-// Robar carta
 async function drawCard() {
   const res = await fetch("http://localhost:3001/draw", {
     method: "POST",
@@ -144,7 +143,6 @@ async function drawCard() {
   updateGameState(data.gameState);
 }
 
-// Decir UNO
 async function sayUNO() {
   const res = await fetch("http://localhost:3001/uno", {
     method: "POST",
@@ -155,8 +153,7 @@ async function sayUNO() {
   updateGameState(data.gameState);
 }
 
-// Nueva ronda
-async function newRoundBackend() {
+async function newRound() {
   const res = await fetch("http://localhost:3001/new-round", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -166,7 +163,6 @@ async function newRoundBackend() {
   updateGameState(data);
 }
 
-// Elegir color para comodín
 function chooseColor() {
   return new Promise((resolve) => {
     colorChoiceModal.classList.remove("hidden");
@@ -182,10 +178,8 @@ function chooseColor() {
   });
 }
 
-// Botón UNO
 document.querySelector(".uno-button").addEventListener("click", sayUNO);
 
-// --- MODALES Y UTILIDADES ---
 function showModalAlert(
   message,
   callback,
@@ -226,7 +220,6 @@ function closeModal() {
     .forEach((modal) => (modal.style.display = "none"));
 }
 
-// cerrar el modal al hacer clic fuera del contenido
 window.onclick = function (event) {
   var modal = document.getElementById("modal-reglas");
   if (event.target === modal) {
@@ -234,9 +227,9 @@ window.onclick = function (event) {
   }
 };
 
-// function openModalJugadores() {
-//   document.getElementById("modal-jugadores").style.display = "flex";
-// }
+function openModalJugadores() {
+  document.getElementById("modal-jugadores").style.display = "flex";
+}
 
 function goToGame() {
   // const num = document.getElementById("num-jugadores").value;
@@ -244,7 +237,6 @@ function goToGame() {
   window.location.href = "interfazdejuego.html";
 }
 
-// --- SONIDOS Y MÚSICA ---
 function PlayAudio() {
   document.getElementById("audio-bg").play();
 }
@@ -307,6 +299,7 @@ function playErrorSound() {
 
 window.onload = function () {
   if (document.getElementById("players-area")) {
-    startGame();
+    const numJugadores = parseInt(localStorage.getItem("numJugadores") || "2");
+    startGame(numJugadores);
   }
 };
