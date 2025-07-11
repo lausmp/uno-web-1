@@ -56,6 +56,7 @@ function updateGameState(state) {
   lastColor = state.currentColor;
   lastTurn = state.turn;
   lastDiscard = state.discardPile;
+  //aaaa
 }
 
 function getCardImage(card) {
