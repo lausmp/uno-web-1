@@ -31,8 +31,60 @@ function connectWebSocket() {
   };
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
-    if (msg.gameState) updateGameState(msg.gameState);
+    handleWebSocketEvent(msg);
   };
+}
+
+function handleWebSocketEvent(msg) {
+  switch (msg.type) {
+    case "client_play":
+      showNotification(`${msg.player} jugó una carta`);
+      break;
+    case "bot_play":
+      showNotification(`${msg.player} (bot) jugó una carta`);
+      break;
+    case "client_draw_from_deck":
+      showNotification(`${msg.player} robó una carta`);
+      break;
+    case "bot_draw_from_deck":
+      showNotification(`${msg.player} (bot) robó una carta`);
+      break;
+    case "draw_penalty":
+      showNotification(
+        `${msg.affectedPlayer} recibe ${msg.amount} cartas de penalización`
+      );
+      break;
+    case "uno_penalty":
+      showNotification(`Penalización por no decir UNO a tiempo`);
+      break;
+    case "uno_warning":
+      showNotification(`¡Solo te queda una carta! Di UNO`);
+      break;
+    case "client_uno":
+      showNotification(`${msg.player} dijo UNO`);
+      break;
+    case "bot_uno":
+      showNotification(`${msg.player} (bot) dijo UNO`);
+      break;
+    case "round_score":
+      let msgText = `${msg.winner} ganó la ronda con ${msg.roundScore} puntos`;
+      if (msg.gameState && msg.gameState.finished) {
+        msgText += ". ¡El juego ha terminado!";
+      }
+      showNotification(msgText);
+      break;
+  }
+  if (msg.gameState) updateGameState(msg.gameState);
+}
+
+function showNotification(msg) {
+  const notification = document.getElementById("notification");
+  if (!notification) return;
+  notification.textContent = msg;
+  notification.classList.remove("hidden");
+  setTimeout(() => {
+    notification.classList.add("hidden");
+  }, 3000);
 }
 
 let lastColor = null;
@@ -40,8 +92,16 @@ let lastTurn = null;
 let lastDiscard = null;
 
 function updateGameState(state) {
-  if (lastColor !== null && state.currentColor !== lastColor && (state.discardPile.value === "wild" || state.discardPile.value === "wild4") && lastTurn !== 0) {
-    showModalAlert(`El color ha cambiado a ${state.currentColor.toUpperCase()}`);
+  if (
+    lastColor !== null &&
+    state.currentColor !== lastColor &&
+    (state.discardPile.value === "wild" ||
+      state.discardPile.value === "wild4") &&
+    lastTurn !== 0
+  ) {
+    showModalAlert(
+      `El color ha cambiado a ${state.currentColor.toUpperCase()}`
+    );
   }
   clientCards = state.clientCards;
   currentColor = state.currentColor;
@@ -81,10 +141,15 @@ function showCards() {
   let html = `<div id="player1" class="player"><h3>Tú</h3></div>`;
   // Otros jugadores
   otherPlayers.forEach((p, idx) => {
-    html += `<div id="player${idx + 2}" class="player"><h3>Jugador ${idx + 2
-      }</h3><div class="hand">${"<img src='Assets/backcard.png' class='card-img'>".repeat(
-        p.count
-      )}</div></div>`;
+    let handHtml = "";
+    for (let i = 0; i < p.count; i++) {
+      handHtml += `<img src='Assets/backcard.png' class='card-img${
+        turn === idx + 1 ? " active-card" : ""
+      }'>`;
+    }
+    html += `<div id="player${idx + 2}" class="player"><h3>Jugador ${
+      idx + 2
+    }</h3><div class="hand">${handHtml}</div></div>`;
   });
 
   html += `<div id="center-area">
@@ -133,17 +198,24 @@ function isCardValidFrontend(card, discardPile, currentColor) {
   if (!card) return false;
   if (card.type === "wild" || card.type === "wild4") return true;
   if (card.color === currentColor) return true;
-  if (card.type === "number" && discardPile.type === "number" && card.value === discardPile.value) return true;
+  if (
+    card.type === "number" &&
+    discardPile.type === "number" &&
+    card.value === discardPile.value
+  )
+    return true;
   if (
     ["skip", "reverse", "draw2"].includes(card.type) &&
     card.type === discardPile.type
-  ) return true;
+  )
+    return true;
   if (
     ["skip", "reverse", "draw2"].includes(card.type) &&
     ["skip", "reverse", "draw2"].includes(discardPile.type) &&
     card.type !== discardPile.type &&
     card.color === discardPile.color
-  ) return true;
+  )
+    return true;
   return false;
 }
 
@@ -156,9 +228,12 @@ async function playCard(card) {
   playSpecialSound(card);
   if (card.value === "wild" || card.value === "wild4") {
     const chosenColor = await chooseColor();
-    showModalAlert(`Elegiste el color ${chosenColor.toUpperCase()}`, async () => {
-      await sendPlay(card, chosenColor);
-    });
+    showModalAlert(
+      `Elegiste el color ${chosenColor.toUpperCase()}`,
+      async () => {
+        await sendPlay(card, chosenColor);
+      }
+    );
   } else {
     await sendPlay(card, null);
   }
@@ -328,7 +403,12 @@ function playErrorSound() {
 }
 function playSpecialSound(card) {
   if (card.type === "draw2" || card.type === "wild4") playPlusSound();
-  else if (card.type === "reverse" || card.type === "skip" || card.type === "skip") playSkipReverseSound();
+  else if (
+    card.type === "reverse" ||
+    card.type === "skip" ||
+    card.type === "skip"
+  )
+    playSkipReverseSound();
   else if (card.type === "wild") playChangeColorSound();
 }
 
