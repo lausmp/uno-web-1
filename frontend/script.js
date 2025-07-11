@@ -118,7 +118,7 @@ function showCards() {
 }
 
 async function playCard(card) {
-  if (card.value === "changeColor" || card.value === "draw4") {
+  if (card.value === "wild" || card.value === "wild4") {
     const chosenColor = await chooseColor();
     await sendPlay(card, chosenColor);
   } else {
