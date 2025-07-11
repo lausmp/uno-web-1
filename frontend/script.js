@@ -75,6 +75,7 @@ function showCards() {
       p.count
     )}</div></div>`;
   });
+
   html += `<div id="center-area">
     <div id="discard-pile"></div>
     <div id="deck"></div>
@@ -97,6 +98,8 @@ function showCards() {
   playerDiv.appendChild(handDiv);
 
   // Renderiza mazo
+  const deckArea = document.getElementById("deck");
+  const discardPileArea = document.getElementById("discard-pile");
   deckArea.innerHTML = "";
   const deckImg = document.createElement("img");
   deckImg.src = "Assets/backcard.png";
