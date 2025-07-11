@@ -120,7 +120,9 @@ function showCards() {
 async function playCard(card) {
   if (card.value === "wild" || card.value === "wild4") {
     const chosenColor = await chooseColor();
+    showModalAlert(`Elegiste el color ${chosenColor.toUpperCase()}`, async () => {
     await sendPlay(card, chosenColor);
+    });
   } else {
     await sendPlay(card, null);
   }
